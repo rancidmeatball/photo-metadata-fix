@@ -1,0 +1,228 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      RECOVERY PLAN - ANALYSIS COMPLETE                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+✅ RECOVERY PLAN CREATED: recovery_plan.csv
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 STATISTICS
+═══════════════════════════════════════════════════════════════════════════════
+
+Total files analyzed:        124,728
+Files with recovery info:    121,989
+Files with date in old name:  49,054
+
+FILES THAT NEED UPDATING
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ HIGH confidence:           6,774 files (SAFE TO UPDATE!)
+   - All sources agree (old filename, directory, modified date)
+   - Example: File in 2015/ folder, old name IMG20150128_113046.JPG,
+     modified date 2015-01-28 → All point to same date!
+
+⚠️  LOW confidence:          23,984 files (Need careful review)
+   - Some sources agree, some conflict
+   - Should review reasoning before updating
+
+❌ VERY_LOW confidence:       5,473 files (Skip for now)
+   - Sources strongly conflict or insufficient data
+   - Not safe to auto-update
+
+FILES ALREADY CORRECT
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Don't need updating:       12,823 files
+  - EXIF already matches proposed date
+  - These are fine as-is
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 WHY FILES NEED UPDATING
+═══════════════════════════════════════════════════════════════════════════════
+
+1. No EXIF data (6,699 HIGH confidence files)
+   - HEIC files without EXIF
+   - JPG files with stripped metadata
+   - Can safely populate from old filename
+
+2. Corrupted EXIF (75 HIGH confidence files)
+   - Current EXIF: 2017-06-27
+   - Should be: 2015-01-28 (from old filename + directory + modified date)
+   - Example: IMG_20150128_113046.jpg
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ RECOMMENDED APPROACH
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: Test on 10 files (DRY RUN)
+  ./apply_recovery_plan.py \
+    --plan recovery_plan.csv \
+    --confidence HIGH \
+    --limit 10 \
+    --dry-run
+
+PHASE 2: Test on 10 files (FOR REAL)
+  ./apply_recovery_plan.py \
+    --plan recovery_plan.csv \
+    --confidence HIGH \
+    --limit 10 \
+    --yes
+
+PHASE 3: Verify those 10 files
+  - Check one file with exiftool
+  - Make sure date looks correct
+  - Check recovery_apply.log
+
+PHASE 4: Apply to all HIGH confidence files
+  ./apply_recovery_plan.py \
+    --plan recovery_plan.csv \
+    --confidence HIGH \
+    --yes \
+    --log-file recovery_high_confidence.log
+
+PHASE 5: Review MEDIUM/LOW manually
+  - Open recovery_plan.csv in Excel
+  - Filter for LOW confidence
+  - Check reasoning column
+  - Decide which to update
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 WHAT YOU'RE LOOKING AT IN EXCEL
+═══════════════════════════════════════════════════════════════════════════════
+
+Column Meanings:
+
+1. current_filename      - What file is named now
+2. full_path            - Where it is on disk
+3. old_filename         - Original name (before rename)
+4. proposed_date        - Date we want to set (from old filename)
+5. current_exif_date    - What EXIF says now (NONE or wrong date)
+6. directory            - Current folder location
+7. dir_year             - Year extracted from folder (2015, 2016, etc.)
+8. file_modified        - File system modified date
+9. confidence           - HIGH, MEDIUM, LOW, VERY_LOW
+10. reasoning           - Why this date was chosen
+11. date_differs        - YES = needs update, NO = already correct
+12. update_reason       - Why it needs updating
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 EXAMPLES OF HIGH CONFIDENCE ENTRIES
+═══════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE 1: Missing EXIF
+  Current: IMG_20150221_194221.jpg
+  Old: IMG_20150221_194221.JPG
+  Proposed: 2015-02-21 19:42:21
+  Current EXIF: NONE
+  Directory: 2015/
+  Modified: 2015-02-21 19:42:21
+  Confidence: HIGH
+  Reasoning: Old filename year matches directory; matches modified date
+  Action: ✅ Safe to populate EXIF with 2015-02-21 19:42:21
+
+EXAMPLE 2: Corrupted EXIF
+  Current: IMG_20150128_113046.jpg
+  Old: IMG_20150128_113046.JPG
+  Proposed: 2015-01-28 11:30:46
+  Current EXIF: 2017-06-27 17:16:01 (WRONG!)
+  Directory: 2015/
+  Modified: 2015-01-28 11:30:46
+  Confidence: HIGH
+  Reasoning: Old filename matches directory and modified date
+  Action: ✅ Safe to fix EXIF from 2017 → 2015
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️  IMPORTANT NOTES
+═══════════════════════════════════════════════════════════════════════════════
+
+HEIC FILES:
+  • HEIC files often show "NONE" for EXIF
+  • PIL/Pillow can't update HEIC EXIF easily
+  • These might need exiftool instead
+  • Consider skipping HEIC or converting to JPG first
+
+VIDEOS:
+  • Videos (MOV, MP4) don't have standard EXIF
+  • Can't be updated with PIL
+  • Need exiftool or other tools
+  • LOW/VERY_LOW confidence for most videos
+
+JPG FILES:
+  • ✅ Fully supported for EXIF updates
+  • These are the safest to update
+  • Focus on JPG files first
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 RECOMMENDED STRATEGY
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Filter for JPG files only
+  Open recovery_plan.csv in Excel
+  Filter column "current_filename" for ".jpg"
+  Filter "confidence" for "HIGH"
+  Filter "date_differs" for "YES"
+  
+  This gives you the safest batch to update!
+
+STEP 2: Test on 10 JPG files
+  ./apply_recovery_plan.py \
+    --plan recovery_plan.csv \
+    --confidence HIGH \
+    --limit 10 \
+    --dry-run
+
+STEP 3: Apply to all HIGH confidence JPG files
+  (After testing succeeds)
+
+STEP 4: Deal with HEIC/MOV files separately
+  May need different approach or exiftool
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📁 FILES CREATED
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ recovery_plan.csv
+  - Complete recovery plan
+  - 49,054 entries
+  - Open in Excel to review
+
+✓ Scripts ready:
+  - create_recovery_plan.py (already run)
+  - apply_recovery_plan.py (ready to use)
+
+✓ Documentation:
+  - SAFE_RECOVERY_GUIDE.md (complete instructions)
+  - This summary file
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 NEXT ACTION
+═══════════════════════════════════════════════════════════════════════════════
+
+The recovery_plan.csv file is now OPEN in Excel.
+
+Look for these columns:
+  • confidence = HIGH
+  • date_differs = YES  
+  • current_filename ends with .jpg (not .heic or .mov)
+
+These are the safest to update!
+
+When ready to test:
+  ./apply_recovery_plan.py --plan recovery_plan.csv --confidence HIGH --limit 10 --dry-run
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Created: December 17, 2025
+Total recoverable: 49,054 files
+Safe to update (HIGH): 6,774 files
+Review recommended (LOW): 23,984 files  
+Skip for now (VERY_LOW): 5,473 files
+
+═══════════════════════════════════════════════════════════════════════════════
