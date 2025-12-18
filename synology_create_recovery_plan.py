@@ -171,11 +171,11 @@ def main():
     parser = argparse.ArgumentParser(
         description='Create safe recovery plan for Synology NAS (READ ONLY)'
     )
-    parser.add_argument('--recovery-db', default='/volume1/temporary/RECOVERY/recovery_list.csv',
+    parser.add_argument('--recovery-db', default='/volume1/photo/RECOVERY/recovery_list.csv',
                        help='Path to recovery_list_*.csv')
-    parser.add_argument('--state-capture', default='/volume1/temporary/STATE_BACKUPS/file_state.csv',
+    parser.add_argument('--state-capture', default='/volume1/photo/STATE_BACKUPS/file_state.csv',
                        help='Path to file_state_*.csv')
-    parser.add_argument('--output', default='/volume1/temporary/recovery_plan.csv',
+    parser.add_argument('--output', default='/volume1/photo/recovery_plan.csv',
                        help='Output recovery plan CSV')
     parser.add_argument('--jpg-only', action='store_true',
                        help='Only include JPG files (skip HEIC and MOV)')

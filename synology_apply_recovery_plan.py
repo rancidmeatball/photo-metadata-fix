@@ -146,7 +146,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='Apply recovery plan to update metadata on Synology (MODIFIES FILES!)'
     )
-    parser.add_argument('--plan', default='/volume1/temporary/recovery_plan.csv',
+    parser.add_argument('--plan', default='/volume1/photo/recovery_plan.csv',
                        help='Path to recovery_plan.csv')
     parser.add_argument('--confidence', default='HIGH',
                        choices=['HIGH', 'MEDIUM', 'LOW', 'VERY_LOW'],
@@ -157,9 +157,9 @@ def main():
                        help='Limit number of files (for testing)')
     parser.add_argument('--yes', '-y', action='store_true',
                        help='Auto-confirm without prompting')
-    parser.add_argument('--log-file', default='/volume1/temporary/logs/recovery_apply.log',
+    parser.add_argument('--log-file', default='/volume1/photo/logs/recovery_apply.log',
                        help='Log file for changes')
-    parser.add_argument('--undo-file', default='/volume1/temporary/undo_recovery.json',
+    parser.add_argument('--undo-file', default='/volume1/photo/undo_recovery.json',
                        help='Undo information file')
     
     args = parser.parse_args()
