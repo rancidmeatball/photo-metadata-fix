@@ -1,0 +1,81 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    SYNOLOGY PHOTO RENAMER - QUICK REFERENCE                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+INSTALLATION
+────────────────────────────────────────────────────────────────────────────────
+  1. SSH into Synology:        ssh admin@your-synology-ip
+  2. Install dependencies:     sudo python3 -m pip install Pillow exifread
+  3. Upload script to:         /volume1/scripts/
+  4. Make executable:          chmod +x synology_rename_photos.py
+
+BASIC USAGE (starts in /volume1/photo, recursive by default)
+────────────────────────────────────────────────────────────────────────────────
+  Preview (safe):              ./synology_rename_photos.py --dry-run
+  Run for real:                ./synology_rename_photos.py
+  Auto-confirm:                ./synology_rename_photos.py --yes
+  Quiet mode:                  ./synology_rename_photos.py --yes --quiet
+
+CUSTOM DIRECTORY
+────────────────────────────────────────────────────────────────────────────────
+  Specific folder:             ./synology_rename_photos.py /volume1/photo/2016
+  Non-recursive:               ./synology_rename_photos.py --no-recursive
+  Custom + dry run:            ./synology_rename_photos.py /volume1/photo/2016 --dry-run
+
+FILE NAMING FORMAT
+────────────────────────────────────────────────────────────────────────────────
+  Photos:                      IMG_20231225_143052.jpg
+  Videos:                      MOV_20220704_101530.mov
+  With artist:                 IMG_20231225_143052(JBobphotography).jpg
+
+WHAT IT DOES
+────────────────────────────────────────────────────────────────────────────────
+  ✓ Finds TRUE original date from EXIF DateTimeOriginal
+  ✓ Validates dates (2001-2025 only)
+  ✓ Renames files to match original date
+  ✓ Includes artist name if present
+  ✓ NEVER modifies EXIF metadata (read-only)
+  ✓ Handles duplicates automatically
+
+SAFETY
+────────────────────────────────────────────────────────────────────────────────
+  • Always use --dry-run first
+  • Only renames files (never touches metadata)
+  • Validates all dates
+  • Rejects placeholder dates (2000-01-01, etc.)
+
+TYPICAL WORKFLOW
+────────────────────────────────────────────────────────────────────────────────
+  cd /volume1/scripts
+  
+  # 1. Preview
+  ./synology_rename_photos.py --dry-run | less
+  
+  # 2. If looks good, run
+  ./synology_rename_photos.py
+  
+  # 3. Check results
+  ls /volume1/photo/ | head -20
+
+CRON JOB / TASK SCHEDULER
+────────────────────────────────────────────────────────────────────────────────
+  /volume1/scripts/synology_rename_photos.py --yes --quiet >> /volume1/logs/photo_rename.log 2>&1
+
+COMMON PATHS
+────────────────────────────────────────────────────────────────────────────────
+  Photos:                      /volume1/photo
+  Scripts:                     /volume1/scripts
+  Logs:                        /volume1/logs
+
+TROUBLESHOOTING
+────────────────────────────────────────────────────────────────────────────────
+  Command not found:           chmod +x synology_rename_photos.py
+  Missing PIL:                 sudo python3 -m pip install Pillow exifread
+  Permission denied:           sudo ./synology_rename_photos.py --dry-run
+  Wrong volume:                ls /volume*/ to find correct volume
+
+GET HELP
+────────────────────────────────────────────────────────────────────────────────
+  ./synology_rename_photos.py --help
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,318 @@
+================================================================================
+RECOVERY DATABASE SUMMARY
+================================================================================
+
+Generated: 2025-12-17 21:21:03
+
+Total operations: 133151
+Unique files affected: 124489
+Directories: 2
+
+Operations by type:
+  RENAMED: 132289
+  MOVED: 862
+
+================================================================================
+
+SAMPLE ENTRIES (first 50):
+
+1. [2025-12-16 19:29:26]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20240921_051446.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+2. [2025-12-16 19:29:26]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180558.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+3. [2025-12-16 19:29:26]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150933.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+4. [2025-12-16 19:29:26]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150933_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+5. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251124_150933.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+6. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180559.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+7. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150933.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+8. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150933_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+9. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180553.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+10. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150937.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+11. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150937_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+12. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251124_150937.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+13. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180556.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+14. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150937.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+15. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150937_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+16. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180550.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+17. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150941.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+18. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150941_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+19. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251124_150941.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+20. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180553.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+21. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150941.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+22. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150941_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+23. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180542.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+24. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150944.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+25. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150944_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+26. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251124_150944.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+27. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180547.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+28. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150944.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+29. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150944_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+30. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180545.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+31. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150949.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+32. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150949_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+33. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251124_150949.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+34. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251124_180549.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+35. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251124_150949.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+36. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251124_150949_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+37. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251125_100546.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+38. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251125_094039.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+39. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251125_094039_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+40. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251128_012348.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+41. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251127_170623.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+42. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251127_170623_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+43. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251127_170623.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+44. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251128_012349.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+45. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251127_170623.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+46. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251127_170623_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+47. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_M.jpg
+   New:      IMG_20251128_012401.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+48. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_SM.jpg
+   New:      IMG_20251127_170625.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+49. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_THUMB_XL.jpg
+   New:      IMG_20251127_170625_1.jpg
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
+50. [2025-12-16 19:29:27]
+   Original: SYNOPHOTO_FILM_H.mp4
+   New:      MOV_20251127_170625.mp4
+   Dir:      /volume1/photo
+   Action:   RENAMED
+
