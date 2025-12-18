@@ -126,6 +126,15 @@ def calculate_confidence(old_date, dir_year, modified_date, exif_date):
     
     return confidence, "; ".join(reasons)
 
+def translate_mac_path_to_synology(mac_path):
+    """
+    Translate Mac paths to Synology paths.
+    /Volumes/photo-1/... -> /volume1/photo/...
+    """
+    if mac_path.startswith('/Volumes/photo-1/'):
+        return mac_path.replace('/Volumes/photo-1/', '/volume1/photo/')
+    return mac_path
+
 def load_recovery_database(csv_path):
     """Load the recovery database."""
     recovery_map = {}
@@ -151,9 +160,13 @@ def load_state_capture(csv_path):
         reader = csv.DictReader(f)
         for row in reader:
             filename = row['Filename']
+            # Translate Mac paths to Synology paths
+            full_path = translate_mac_path_to_synology(row['Full Path'])
+            directory = translate_mac_path_to_synology(row['Directory'])
+            
             state_map[filename] = {
-                'full_path': row['Full Path'],
-                'directory': row['Directory'],
+                'full_path': full_path,
+                'directory': directory,
                 'relative_directory': row['Relative Directory'],
                 'file_created': row.get('File Created', ''),
                 'file_modified': row.get('File Modified', ''),
@@ -200,6 +213,13 @@ def main():
     print("Loading state capture...")
     state_map = load_state_capture(args.state_capture)
     print(f"  Loaded {len(state_map)} current file states")
+    
+    # Check if Mac paths were translated
+    with open(args.state_capture, 'r', encoding='utf-8') as f:
+        first_line = f.readline()
+        sample = f.readline()
+        if '/Volumes/photo-1/' in sample:
+            print(f"  ℹ️  Mac paths detected - auto-translated to Synology paths")
     
     # Build recovery plan
     print("\nAnalyzing and building recovery plan...")

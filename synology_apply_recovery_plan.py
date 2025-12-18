@@ -22,6 +22,15 @@ except ImportError:
     print("Install with: sudo python3 -m pip install Pillow")
     sys.exit(1)
 
+def translate_mac_path_to_synology(mac_path):
+    """
+    Translate Mac paths to Synology paths.
+    /Volumes/photo-1/... -> /volume1/photo/...
+    """
+    if mac_path.startswith('/Volumes/photo-1/'):
+        return mac_path.replace('/Volumes/photo-1/', '/volume1/photo/')
+    return mac_path
+
 class SafeEXIFUpdater:
     """Safely updates EXIF metadata with backup and logging."""
     
@@ -187,6 +196,11 @@ def main():
     
     print(f"  Loaded {len(recovery_plan)} entries")
     
+    # Check if Mac paths need translation
+    mac_paths_found = any('/Volumes/photo-1/' in entry.get('full_path', '') for entry in recovery_plan[:100])
+    if mac_paths_found:
+        print(f"  ℹ️  Mac paths detected - will auto-translate to Synology paths")
+    
     # Filter
     confidence_levels = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2, 'VERY_LOW': 3}
     min_level = confidence_levels[args.confidence]
@@ -250,6 +264,8 @@ def main():
     
     for idx, entry in enumerate(filtered_plan, 1):
         file_path = entry['full_path']
+        # Translate Mac paths to Synology paths
+        file_path = translate_mac_path_to_synology(file_path)
         proposed_date_str = entry['proposed_date']
         
         new_date = parse_date(proposed_date_str)
