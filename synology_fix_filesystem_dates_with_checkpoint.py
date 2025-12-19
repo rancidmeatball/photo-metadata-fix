@@ -211,7 +211,7 @@ def main():
         description='Fix file system dates to match EXIF DateTimeOriginal (with checkpoint)'
     )
     parser.add_argument('directory', nargs='?', default='/volume1/photo',
-                       help='Directory to process (default: /volume1/photo)')
+                       help='Directory containing year-named folders (default: /volume1/photo)')
     parser.add_argument('--checkpoint', default='/volume1/photo/.filesystem_dates_checkpoint.json',
                        help='Checkpoint file path')
     parser.add_argument('--resume', action='store_true',
@@ -230,10 +230,11 @@ def main():
     print(f"{'='*80}")
     print(f"SYNOLOGY FIX FILESYSTEM DATES (WITH CHECKPOINT)")
     print(f"{'='*80}")
-    print(f"Directory: {args.directory}")
+    print(f"Base directory: {args.directory}")
     print(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
     print(f"Checkpoint: {args.checkpoint}")
     print(f"Log: {args.log_file}")
+    print(f"Note: Only processes year-named folders (2000-2025)")
     if args.limit:
         print(f"Limit: {args.limit} files")
     print(f"{'='*80}\n")
@@ -265,16 +266,37 @@ def main():
             print("⚠️  No checkpoint found, starting fresh\n")
             resume_mode = False
     
-    # Find image files
+    # Find image files - only in year-named folders
     directory = Path(args.directory)
     if not directory.exists():
         print(f"❌ Directory not found: {args.directory}")
         return 1
     
+    # Find year-named folders (2000-2025)
+    import re
+    year_pattern = re.compile(r'^(200[0-9]|201[0-9]|202[0-5])$')
+    year_folders = []
+    
+    for item in directory.iterdir():
+        if item.is_dir() and year_pattern.match(item.name):
+            year_folders.append(item)
+    
+    if not year_folders:
+        print(f"❌ No year-named folders found in {args.directory}")
+        print(f"   Looking for folders named: 2000-2025")
+        return 1
+    
+    print(f"Found {len(year_folders)} year-named folders:")
+    for yf in sorted(year_folders):
+        print(f"  - {yf.name}")
+    print()
+    
+    # Find image files only in year-named folders
     image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
     all_files = []
-    for ext in image_extensions:
-        all_files.extend(directory.rglob(f'*{ext}'))
+    for year_folder in year_folders:
+        for ext in image_extensions:
+            all_files.extend(year_folder.rglob(f'*{ext}'))
     
     if not all_files:
         print(f"❌ No image files found in {args.directory}")
