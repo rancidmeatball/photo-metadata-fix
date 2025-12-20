@@ -400,15 +400,73 @@ def main():
     print()
     
     # Find image files only in year-named folders
+    # Use find command for faster discovery (avoids Python rglob on huge directories)
     image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
     all_files = []
+    
+    print("Discovering files (this may take a while for large directories)...")
+    sys.stdout.flush()
+    
+    # Use find command for faster file discovery
+    import tempfile
+    find_cmd = ['find']
     for year_folder in year_folders:
-        for ext in image_extensions:
-            all_files.extend(year_folder.rglob(f'*{ext}'))
+        find_cmd.append(str(year_folder))
+    find_cmd.extend(['-type', 'f', '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
+                     '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
+                     '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
+                     '-o', '-name', '*.HEIC'])
+    
+    try:
+        result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=300)  # 5 min timeout
+        if result.returncode == 0:
+            all_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
+            print(f"Found {len(all_files)} files using find command")
+        else:
+            # Fallback to Python rglob if find fails
+            print("find command failed, using Python rglob (slower)...")
+            sys.stdout.flush()
+            for year_folder in year_folders:
+                for ext in image_extensions:
+                    files = list(year_folder.rglob(f'*{ext}'))
+                    all_files.extend(files)
+                    if len(all_files) % 10000 == 0:
+                        print(f"  Discovered {len(all_files)} files so far...")
+                        sys.stdout.flush()
+    except subprocess.TimeoutExpired:
+        print("⚠️  File discovery timed out after 5 minutes")
+        print("   Using checkpoint to resume from last known position...")
+        if resume_mode and checkpoint.data.get('processed_files'):
+            # Use files from checkpoint to continue
+            processed_paths = {Path(p['path']) for p in checkpoint.data['processed_files']}
+            # Try to discover files incrementally
+            print("   Attempting incremental file discovery...")
+            sys.stdout.flush()
+            # Just use the checkpoint's file list if available
+            if checkpoint.data.get('all_files'):
+                all_files = [Path(f) for f in checkpoint.data['all_files']]
+            else:
+                print("❌ Cannot continue without file list")
+                return 1
+    except Exception as e:
+        print(f"⚠️  Error during file discovery: {e}")
+        print("   Falling back to Python rglob...")
+        sys.stdout.flush()
+        for year_folder in year_folders:
+            for ext in image_extensions:
+                files = list(year_folder.rglob(f'*{ext}'))
+                all_files.extend(files)
+                if len(all_files) % 10000 == 0:
+                    print(f"  Discovered {len(all_files)} files so far...")
+                    sys.stdout.flush()
     
     if not all_files:
         print(f"❌ No image files found in {args.directory}")
         return 1
+    
+    # Save file list to checkpoint for faster resume
+    if not resume_mode:
+        checkpoint.data['all_files'] = [str(f) for f in all_files]
     
     # Filter out already processed files if resuming
     if resume_mode:
