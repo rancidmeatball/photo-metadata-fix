@@ -68,16 +68,20 @@ class CheckpointManager:
     
     def mark_processed(self, file_path, result, exif_date=None):
         """Mark a file as processed."""
+        # Normalize path before storing
+        normalized_path = str(Path(file_path).resolve())
         entry = {
-            'path': str(file_path),
+            'path': normalized_path,
             'result': result,
             'timestamp': datetime.now().isoformat()
         }
         if exif_date:
             entry['exif_date'] = exif_date.isoformat()
         
-        self.data['processed_files'].append(entry)
-        self.data['current_index'] += 1
+        # Don't add duplicates
+        if not any(Path(p['path']).resolve() == Path(normalized_path) for p in self.data['processed_files']):
+            self.data['processed_files'].append(entry)
+            self.data['current_index'] += 1
         
         # Update stats
         if result == 'updated':
@@ -89,8 +93,9 @@ class CheckpointManager:
     
     def is_processed(self, file_path):
         """Check if file was already processed."""
-        file_str = str(file_path)
-        return any(p['path'] == file_str for p in self.data['processed_files'])
+        # Normalize path for comparison
+        file_str = str(Path(file_path).resolve())
+        return any(Path(p['path']).resolve() == Path(file_str) for p in self.data['processed_files'])
     
     def should_save(self):
         """Check if we should save checkpoint (every 100 files)."""
