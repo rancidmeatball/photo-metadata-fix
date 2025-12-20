@@ -21,6 +21,7 @@ import json
 import subprocess
 import threading
 import signal
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -198,8 +199,49 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
                 pass
         raise e
 
-def get_datetime_original(file_path):
-    """Get DateTimeOriginal from file using exiftool with timeout."""
+def extract_date_from_filename(filename):
+    """Extract date from filename patterns like IMG_yyyyMMdd_HHmmss."""
+    # Pattern 1: IMG_yyyyMMdd_HHmmss or MOV_yyyyMMdd_HHmmss
+    pattern1 = r'(?:IMG|MOV)_?(\d{4})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})'
+    match = re.search(pattern1, filename, re.IGNORECASE)
+    if match:
+        try:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            if 2001 <= year <= 2025:
+                return datetime(year, month, day, hour, minute, second)
+        except ValueError:
+            pass
+    
+    # Pattern 2: IMGyyyyMMdd_HHmmss (no underscore after IMG)
+    pattern2 = r'(?:IMG|MOV)(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})'
+    match = re.search(pattern2, filename, re.IGNORECASE)
+    if match:
+        try:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            if 2001 <= year <= 2025:
+                return datetime(year, month, day, hour, minute, second)
+        except ValueError:
+            pass
+    
+    # Pattern 3: Date only (no time) - IMG_yyyyMMdd
+    pattern3 = r'(?:IMG|MOV)_?(\d{4})(\d{2})(\d{2})'
+    match = re.search(pattern3, filename, re.IGNORECASE)
+    if match:
+        try:
+            year, month, day = map(int, match.groups())
+            if 2001 <= year <= 2025:
+                return datetime(year, month, day, 12, 0, 0)  # Default to noon
+        except ValueError:
+            pass
+    
+    return None
+
+def get_datetime_original(file_path, use_filename_fallback=True):
+    """Get DateTimeOriginal from file using exiftool with timeout.
+    Falls back to filename if EXIF is missing and use_filename_fallback=True."""
+    file_path = Path(file_path)
+    
+    # Try EXIF first
     try:
         cmd = ['exiftool', '-s', '-s', '-s', '-DateTimeOriginal', str(file_path)]
         returncode, stdout, stderr = run_exiftool_with_timeout(cmd, timeout_seconds=10)
@@ -207,15 +249,22 @@ def get_datetime_original(file_path):
         if returncode == 0 and stdout.strip():
             date_str = stdout.strip()
             try:
-                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S"), "EXIF"
             except:
                 pass
     except subprocess.TimeoutExpired:
-        # Timeout getting EXIF - file is problematic
-        return None
+        # Timeout getting EXIF - try filename fallback
+        pass
     except:
         pass
-    return None
+    
+    # Fallback to filename if EXIF not found
+    if use_filename_fallback:
+        filename_date = extract_date_from_filename(file_path.name)
+        if filename_date:
+            return filename_date, "filename"
+    
+    return None, None
 
 def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
     """Update file system dates to match EXIF DateTimeOriginal.
@@ -243,13 +292,12 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
         
         # Use exiftool to set ONLY file system dates
         # -FileModifyDate: file system modification date
-        # -FileCreateDate: file system creation date (if supported)
+        # Note: FileCreateDate is NOT set because ext4 on Synology doesn't support creation time (birthtime)
         # This does NOT modify any EXIF metadata
         # Use robust timeout that forcefully kills stuck processes
         cmd = [
             'exiftool', '-overwrite_original',
             f'-FileModifyDate={date_str}',
-            f'-FileCreateDate={date_str}',
             str(file_path)
         ]
         
@@ -588,15 +636,22 @@ def main():
                 log_file.flush()
                 
                 try:
-                    # Get EXIF date (with timeout protection)
-                    exif_date = get_datetime_original(file_path)
+                    # Get date from EXIF, fallback to filename if missing
+                    date_result = get_datetime_original(file_path, use_filename_fallback=True)
+                    exif_date = date_result[0] if date_result[0] else None
+                    date_source = date_result[1] if date_result[1] else None
                     
                     if not exif_date:
                         checkpoint.mark_processed(file_path, 'skipped_no_exif')
                         year_skipped_count += 1
                         if idx <= 10:  # Show first 10 skipped
-                            print(f"  [{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
+                            print(f"  [{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No date found (no EXIF and filename doesn't match pattern)")
                         continue
+                    
+                    # Log if we used filename instead of EXIF
+                    if date_source == "filename" and idx <= 20:
+                        log_file.write(f"  [{idx}/{len(files_to_process)}] ℹ️  {file_path.name}: Using date from filename\n")
+                        log_file.flush()
                     
                     # Update file system date (has 30 second timeout with force kill)
                     success, message, date_used = update_filesystem_date(
