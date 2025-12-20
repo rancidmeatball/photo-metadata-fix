@@ -162,6 +162,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
         # -FileModifyDate: file system modification date
         # -FileCreateDate: file system creation date (if supported)
         # This does NOT modify any EXIF metadata
+        # Increased timeout to 30 seconds for large/problematic files
         result = subprocess.run(
             ['exiftool', '-overwrite_original',
              f'-FileModifyDate={date_str}',
@@ -169,7 +170,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
              str(file_path)],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=30
         )
         
         if result.returncode == 0:
@@ -365,6 +366,11 @@ def main():
                     print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
                 continue
             
+            # Log which file we're processing (for debugging stuck files)
+            if idx % 100 == 0 or idx <= 5:
+                log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
+                log_file.flush()
+            
             success, message, date_used = update_filesystem_date(
                 file_path, exif_date, dry_run=args.dry_run, log_file=log_file
             )
@@ -376,6 +382,9 @@ def main():
                 success_count += 1
             else:
                 checkpoint.mark_processed(file_path, 'error')
+                # Always log errors
+                log_file.write(f"ERROR [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+                log_file.flush()
                 if error_count < 10:  # Show first 10 errors
                     print(f"[{idx}/{len(files_to_process)}] {message}")
                 error_count += 1
