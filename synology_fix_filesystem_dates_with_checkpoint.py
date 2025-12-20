@@ -521,13 +521,30 @@ def main():
         log_file.write(f"  Checking for already processed files...\n")
         log_file.flush()
         if resume_mode:
+            # Build a set of processed paths for faster lookup
+            print(f"  Building processed files lookup (this may take a moment)...")
+            sys.stdout.flush()
+            log_file.write(f"  Building processed files lookup...\n")
+            log_file.flush()
+            processed_paths = {Path(p['path']).resolve() for p in checkpoint.data['processed_files']}
+            print(f"  Lookup built: {len(processed_paths)} processed files in checkpoint")
+            sys.stdout.flush()
+            log_file.write(f"  Lookup built: {len(processed_paths)} processed files\n")
+            log_file.flush()
+            
+            # Check files against the set
             files_to_process = []
             processed_count = 0
-            for f in year_files:
-                if checkpoint.is_processed(f):
+            total_files = len(year_files)
+            for idx, f in enumerate(year_files, 1):
+                file_resolved = Path(f).resolve()
+                if file_resolved in processed_paths:
                     processed_count += 1
                 else:
                     files_to_process.append(f)
+                if idx % 100 == 0:
+                    print(f"  ... checked {idx}/{total_files} files...")
+                    sys.stdout.flush()
             print(f"  Already processed: {processed_count}")
             print(f"  Remaining: {len(files_to_process)} files\n")
             log_file.write(f"  Already processed: {processed_count}, Remaining: {len(files_to_process)}\n")
