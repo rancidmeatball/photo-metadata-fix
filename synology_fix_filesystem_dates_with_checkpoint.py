@@ -486,8 +486,13 @@ def main():
                 log_file.flush()
             
             elapsed = (datetime.now() - start_time).total_seconds()
-            print(f"  ✓ Found {len(year_files)} total files in {year_folder.name}/ (excluded SYNOPHOTO files, took {elapsed:.1f}s)")
-            log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files, took {elapsed:.1f}s)\n")
+            total_count = len(year_files)
+            print(f"  ✓ Found {total_count} total files in {year_folder.name}/ (excluded SYNOPHOTO files, took {elapsed:.1f}s)")
+            log_file.write(f"  Found {total_count} files using rglob (excluded SYNOPHOTO files, took {elapsed:.1f}s)\n")
+            log_file.flush()
+            print(f"  Continuing to filter and process files...")
+            sys.stdout.flush()
+            log_file.write(f"  Continuing to filter and process files...\n")
             log_file.flush()
         except Exception as e:
             print(f"  ❌ Error during file discovery: {e} (skipping this year)")
