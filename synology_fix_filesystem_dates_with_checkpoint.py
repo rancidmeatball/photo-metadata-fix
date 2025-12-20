@@ -578,15 +578,15 @@ def main():
             print(f"  ⚠️  No files found in {year_folder.name}/, skipping...")
             continue
         
-        # Filter out SYNOPHOTO files (safety check - should already be filtered)
-        print(f"  Filtering SYNOPHOTO files...")
+        # Filter out SYNOPHOTO files and .THM files (safety check - should already be filtered)
+        print(f"  Filtering SYNOPHOTO and .THM files...")
         sys.stdout.flush()
-        log_file.write(f"  Filtering SYNOPHOTO files...\n")
+        log_file.write(f"  Filtering SYNOPHOTO and .THM files...\n")
         log_file.flush()
-        year_files = [f for f in year_files if 'SYNOPHOTO' not in str(f).upper()]
-        print(f"  After SYNOPHOTO filter: {len(year_files)} files")
+        year_files = [f for f in year_files if 'SYNOPHOTO' not in str(f).upper() and not f.name.upper().endswith('.THM')]
+        print(f"  After filtering: {len(year_files)} files")
         sys.stdout.flush()
-        log_file.write(f"  After SYNOPHOTO filter: {len(year_files)} files\n")
+        log_file.write(f"  After filtering: {len(year_files)} files\n")
         log_file.flush()
         
         # Filter out already processed files if resuming
