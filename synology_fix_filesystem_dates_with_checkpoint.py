@@ -393,11 +393,14 @@ def main():
     log_path = Path(args.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(log_path, 'a', encoding='utf-8')  # Append mode for resume
+    start_timestamp = datetime.now()
     log_file.write(f"\n{'='*80}\n")
-    log_file.write(f"File System Dates Fix - Started: {datetime.now().isoformat()}\n")
+    log_file.write(f"File System Dates Fix - Started: {start_timestamp.isoformat()}\n")
+    log_file.write(f"Timestamp: {start_timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
     if resume_mode:
         log_file.write(f"Resuming from checkpoint: {checkpoint.data['current_index']} files processed\n")
     log_file.write("="*80 + "\n\n")
+    log_file.flush()
     
     # Initialize skipped files log
     skipped_log_path = Path(args.skipped_log)
