@@ -162,25 +162,47 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
             except:
                 pass
     
+    # Try to use setsid if available (Unix only)
+    preexec_fn = None
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            preexec_fn=os.setsid  # Create new process group for easier killing
-        )
+        if hasattr(os, 'setsid'):
+            preexec_fn = os.setsid
+    except:
+        pass
+    
+    try:
+        popen_kwargs = {
+            'cmd': cmd,
+            'stdout': subprocess.PIPE,
+            'stderr': subprocess.PIPE,
+            'text': True
+        }
+        if preexec_fn:
+            popen_kwargs['preexec_fn'] = preexec_fn
+        
+        process = subprocess.Popen(**popen_kwargs)
         
         # Set up timeout
         timer = threading.Timer(timeout_seconds, kill_process)
         timer.start()
         
         try:
-            stdout, stderr = process.communicate(timeout=timeout_seconds+5)  # Slightly longer timeout
+            # Use communicate with timeout if available (Python 3.3+)
+            if hasattr(subprocess.Popen, 'communicate'):
+                try:
+                    stdout, stderr = process.communicate(timeout=timeout_seconds+5)
+                except TypeError:
+                    # Python < 3.3 doesn't support timeout in communicate
+                    stdout, stderr = process.communicate()
+            else:
+                stdout, stderr = process.communicate()
         except subprocess.TimeoutExpired:
             # Force kill if communicate times out
             kill_process()
-            process.wait(timeout=2)
+            try:
+                process.wait(timeout=2)
+            except:
+                pass
             raise subprocess.TimeoutExpired(cmd, timeout_seconds)
         finally:
             timer.cancel()
@@ -195,7 +217,10 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
         if process and process.poll() is None:
             try:
                 process.kill()
-                process.wait(timeout=2)
+                try:
+                    process.wait(timeout=2)
+                except:
+                    pass
             except:
                 pass
         raise
@@ -203,7 +228,10 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
         if process:
             try:
                 process.kill()
-                process.wait(timeout=2)
+                try:
+                    process.wait(timeout=2)
+                except:
+                    pass
             except:
                 pass
         raise e
