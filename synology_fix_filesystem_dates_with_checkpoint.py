@@ -389,82 +389,6 @@ def main():
         print(f"  - {yf.name}")
     print()
     
-    # Process each year folder separately (much faster and easier to track)
-    all_files = []
-    image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
-    
-    for year_folder in sorted(year_folders):
-        print(f"Discovering files in {year_folder.name}/...")
-        sys.stdout.flush()
-        
-        # Use find command for faster file discovery (one year at a time is much faster)
-        find_cmd = ['find', str(year_folder), '-type', 'f', '(',
-                    '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
-                    '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
-                    '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
-                    '-o', '-name', '*.HEIC', ')']
-        
-        try:
-            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=120)  # 2 min per year
-            if result.returncode == 0:
-                year_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-                all_files.extend(year_files)
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
-            else:
-                # Fallback to Python rglob if find fails
-                print(f"  ⚠️  find failed for {year_folder.name}, using rglob...")
-                sys.stdout.flush()
-                year_files = []
-                for ext in image_extensions:
-                    year_files.extend(year_folder.rglob(f'*{ext}'))
-                all_files.extend(year_files)
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
-        except subprocess.TimeoutExpired:
-            print(f"  ⚠️  Timeout discovering files in {year_folder.name}/ (skipping this year)")
-            continue
-        except Exception as e:
-            print(f"  ⚠️  Error discovering files in {year_folder.name}/: {e} (skipping this year)")
-            continue
-    
-    if not all_files:
-        print(f"❌ No image files found in specified year folder(s)")
-        return 1
-    
-    print(f"\n✓ Total files to process: {len(all_files)}\n")
-    
-    # Save file list to checkpoint for faster resume
-    if not resume_mode:
-        checkpoint.data['all_files'] = [str(f) for f in all_files]
-    
-    # Filter out already processed files if resuming
-    if resume_mode:
-        files_to_process = [f for f in all_files if not checkpoint.is_processed(f)]
-        print(f"Found {len(all_files)} total files")
-        print(f"Already processed: {len(all_files) - len(files_to_process)}")
-        print(f"Remaining: {len(files_to_process)} files\n")
-    else:
-        files_to_process = all_files
-        checkpoint.data['total_files'] = len(files_to_process)
-        print(f"Found {len(files_to_process)} image files\n")
-    
-    if args.limit:
-        files_to_process = files_to_process[:args.limit]
-        print(f"Limited to: {len(files_to_process)} files\n")
-    
-    if not files_to_process:
-        print("✅ All files already processed!")
-        return 0
-    
-    # Confirm
-    if not args.yes and not args.dry_run:
-        print(f"\n⚠️  WARNING: This will modify file system dates for {len(files_to_process)} files!")
-        print(f"EXIF metadata will NOT be modified - only file system dates.")
-        print(f"Make sure you have backups!")
-        response = input(f"\nProceed? Type 'yes' to continue: ").strip().lower()
-        if response != 'yes':
-            print("Aborted.")
-            return 0
-    
     # Initialize log
     log_path = Path(args.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -483,93 +407,209 @@ def main():
     skipped_log_file.write(f"Skipped Problematic Files - Started: {datetime.now().isoformat()}\n")
     skipped_log_file.write("="*80 + "\n\n")
     
-    # Process files
-    print(f"\n{'='*80}")
-    print(f"Processing files...")
-    print(f"{'='*80}\n")
+    # Process each year folder sequentially
+    image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
     
-    success_count = 0
-    error_count = 0
-    skipped_count = 0
-    skipped_problematic_count = 0
+    total_success_count = 0
+    total_error_count = 0
+    total_skipped_count = 0
+    total_skipped_problematic_count = 0
     
-    try:
-        for idx, file_path in enumerate(files_to_process, 1):
-            # Skip if already processed (safety check)
-            if checkpoint.is_processed(file_path):
-                continue
-            
-            # ALWAYS log which file we're processing (for stuck file detection)
-            log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
+    # Confirm before starting
+    if not args.yes and not args.dry_run:
+        print(f"\n⚠️  WARNING: This will modify file system dates for files in {len(year_folders)} year folder(s)!")
+        print(f"EXIF metadata will NOT be modified - only file system dates.")
+        print(f"Make sure you have backups!")
+        response = input(f"\nProceed? Type 'yes' to continue: ").strip().lower()
+        if response != 'yes':
+            print("Aborted.")
+            log_file.close()
+            skipped_log_file.close()
+            return 0
+    
+    # Process each year folder one at a time
+    for year_idx, year_folder in enumerate(sorted(year_folders), 1):
+        print(f"\n{'='*80}")
+        print(f"Processing Year {year_idx}/{len(year_folders)}: {year_folder.name}/")
+        print(f"{'='*80}\n")
+        log_file.write(f"\n{'='*80}\n")
+        log_file.write(f"Processing Year: {year_folder.name}/\n")
+        log_file.write(f"{'='*80}\n\n")
+        log_file.flush()
+        
+        # Discover files in this year folder
+        print(f"Discovering files in {year_folder.name}/...")
+        sys.stdout.flush()
+        
+        find_cmd = ['find', str(year_folder), '-type', 'f', '(',
+                    '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
+                    '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
+                    '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
+                    '-o', '-name', '*.HEIC', ')']
+        
+        year_files = []
+        try:
+            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=120)  # 2 min per year
+            if result.returncode == 0:
+                year_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+            else:
+                # Fallback to Python rglob if find fails
+                print(f"  ⚠️  find failed for {year_folder.name}, using rglob...")
+                sys.stdout.flush()
+                for ext in image_extensions:
+                    year_files.extend(year_folder.rglob(f'*{ext}'))
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+        except subprocess.TimeoutExpired:
+            print(f"  ⚠️  Timeout discovering files in {year_folder.name}/ (skipping this year)")
+            log_file.write(f"⚠️  Skipped {year_folder.name}/ - timeout during file discovery\n\n")
             log_file.flush()
-            
-            try:
-                # Get EXIF date (with timeout protection)
-                exif_date = get_datetime_original(file_path)
-                
-                if not exif_date:
-                    checkpoint.mark_processed(file_path, 'skipped_no_exif')
-                    skipped_count += 1
-                    if idx <= 10:  # Show first 10 skipped
-                        print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
+            continue
+        except Exception as e:
+            print(f"  ⚠️  Error discovering files in {year_folder.name}/: {e} (skipping this year)")
+            log_file.write(f"⚠️  Skipped {year_folder.name}/ - error: {e}\n\n")
+            log_file.flush()
+            continue
+        
+        if not year_files:
+            print(f"  ⚠️  No files found in {year_folder.name}/, skipping...")
+            continue
+        
+        # Filter out already processed files if resuming
+        if resume_mode:
+            files_to_process = [f for f in year_files if not checkpoint.is_processed(f)]
+            print(f"  Already processed: {len(year_files) - len(files_to_process)}")
+            print(f"  Remaining: {len(files_to_process)} files\n")
+        else:
+            files_to_process = year_files
+            print(f"  Files to process: {len(files_to_process)}\n")
+        
+        if args.limit:
+            files_to_process = files_to_process[:args.limit]
+            print(f"  Limited to: {len(files_to_process)} files\n")
+        
+        if not files_to_process:
+            print(f"  ✅ All files in {year_folder.name}/ already processed!\n")
+            continue
+        
+        # Process files in this year
+        print(f"  Processing {len(files_to_process)} files in {year_folder.name}/...\n")
+        
+        year_success_count = 0
+        year_error_count = 0
+        year_skipped_count = 0
+        year_skipped_problematic_count = 0
+        
+        try:
+            for idx, file_path in enumerate(files_to_process, 1):
+                # Skip if already processed (safety check)
+                if checkpoint.is_processed(file_path):
                     continue
                 
-                # Update file system date (has 30 second timeout with force kill)
-                success, message, date_used = update_filesystem_date(
-                    file_path, exif_date, dry_run=args.dry_run, log_file=log_file
-                )
-                
-                if success:
-                    checkpoint.mark_processed(file_path, 'updated', exif_date)
-                    if idx <= 20 or idx % 100 == 0:
-                        print(f"[{idx}/{len(files_to_process)}] {message}")
-                    success_count += 1
-                else:
-                    # Check if it's a timeout or problematic file
-                    if "Timeout" in message or "Exception" in message or "skipping problematic" in message:
-                        # Mark as skipped_problematic and log to skipped file
-                        checkpoint.mark_processed(file_path, 'skipped_problematic')
-                        skipped_problematic_count += 1
-                        skipped_log_file.write(f"{file_path}\n")
-                        skipped_log_file.write(f"  Reason: {message}\n")
-                        skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
-                        skipped_log_file.flush()
-                        log_file.write(f"SKIPPED [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
-                        log_file.flush()
-                        if skipped_problematic_count <= 10:  # Show first 10 skipped
-                            print(f"[{idx}/{len(files_to_process)}] ⚠️  SKIPPED: {file_path.name} - {message}")
-                    else:
-                        # Regular error
-                        checkpoint.mark_processed(file_path, 'error')
-                        log_file.write(f"ERROR [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
-                        log_file.flush()
-                        if error_count < 10:  # Show first 10 errors
-                            print(f"[{idx}/{len(files_to_process)}] {message}")
-                        error_count += 1
-                        
-            except Exception as e:
-                # Catch any unexpected exceptions and skip the file
-                error_msg = f"Exception processing {file_path}: {str(e)}"
-                log_file.write(f"EXCEPTION [{idx}/{len(files_to_process)}]: {error_msg}\n")
+                # ALWAYS log which file we're processing (for stuck file detection)
+                log_file.write(f"Processing [{idx}/{len(files_to_process)}] ({year_folder.name}/): {file_path}\n")
                 log_file.flush()
-                checkpoint.mark_processed(file_path, 'skipped_problematic')
-                skipped_problematic_count += 1
-                skipped_log_file.write(f"{file_path}\n")
-                skipped_log_file.write(f"  Reason: Exception - {str(e)}\n")
-                skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
-                skipped_log_file.flush()
-                if skipped_problematic_count <= 10:
-                    print(f"[{idx}/{len(files_to_process)}] ⚠️  SKIPPED (Exception): {file_path.name}")
+                
+                try:
+                    # Get EXIF date (with timeout protection)
+                    exif_date = get_datetime_original(file_path)
+                    
+                    if not exif_date:
+                        checkpoint.mark_processed(file_path, 'skipped_no_exif')
+                        year_skipped_count += 1
+                        if idx <= 10:  # Show first 10 skipped
+                            print(f"  [{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
+                        continue
+                    
+                    # Update file system date (has 30 second timeout with force kill)
+                    success, message, date_used = update_filesystem_date(
+                        file_path, exif_date, dry_run=args.dry_run, log_file=log_file
+                    )
+                    
+                    if success:
+                        checkpoint.mark_processed(file_path, 'updated', exif_date)
+                        if idx <= 20 or idx % 100 == 0:
+                            print(f"  [{idx}/{len(files_to_process)}] {message}")
+                        year_success_count += 1
+                    else:
+                        # Check if it's a timeout or problematic file
+                        if "Timeout" in message or "Exception" in message or "skipping problematic" in message:
+                            # Mark as skipped_problematic and log to skipped file
+                            checkpoint.mark_processed(file_path, 'skipped_problematic')
+                            year_skipped_problematic_count += 1
+                            skipped_log_file.write(f"{file_path}\n")
+                            skipped_log_file.write(f"  Reason: {message}\n")
+                            skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
+                            skipped_log_file.flush()
+                            log_file.write(f"SKIPPED [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+                            log_file.flush()
+                            if year_skipped_problematic_count <= 10:  # Show first 10 skipped
+                                print(f"  [{idx}/{len(files_to_process)}] ⚠️  SKIPPED: {file_path.name} - {message}")
+                        else:
+                            # Regular error
+                            checkpoint.mark_processed(file_path, 'error')
+                            log_file.write(f"ERROR [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+                            log_file.flush()
+                            if year_error_count < 10:  # Show first 10 errors
+                                print(f"  [{idx}/{len(files_to_process)}] {message}")
+                            year_error_count += 1
+                            
+                except Exception as e:
+                    # Catch any unexpected exceptions and skip the file
+                    error_msg = f"Exception processing {file_path}: {str(e)}"
+                    log_file.write(f"EXCEPTION [{idx}/{len(files_to_process)}]: {error_msg}\n")
+                    log_file.flush()
+                    checkpoint.mark_processed(file_path, 'skipped_problematic')
+                    year_skipped_problematic_count += 1
+                    skipped_log_file.write(f"{file_path}\n")
+                    skipped_log_file.write(f"  Reason: Exception - {str(e)}\n")
+                    skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
+                    skipped_log_file.flush()
+                    if year_skipped_problematic_count <= 10:
+                        print(f"  [{idx}/{len(files_to_process)}] ⚠️  SKIPPED (Exception): {file_path.name}")
+                
+                # Save checkpoint periodically
+                if checkpoint.should_save() and not args.dry_run:
+                    checkpoint.save()
+                    print(f"  → Checkpoint saved ({idx}/{len(files_to_process)})")
             
-            # Save checkpoint periodically
-            if checkpoint.should_save() and not args.dry_run:
+            except KeyboardInterrupt:
+                print(f"\n\n⚠️  Interrupted by user")
+                if not args.dry_run:
+                    checkpoint.save()
+                    print(f"✅ Checkpoint saved - use --resume to continue")
+                log_file.write(f"\nInterrupted at: {datetime.now().isoformat()}\n")
+                log_file.close()
+                skipped_log_file.close()
+                return 1
+            
+            # Year summary
+            print(f"\n  ✅ Completed {year_folder.name}/:")
+            print(f"     Updated: {year_success_count}, Errors: {year_error_count}")
+            print(f"     Skipped (no EXIF): {year_skipped_count}, Skipped (problematic): {year_skipped_problematic_count}")
+            log_file.write(f"\nCompleted {year_folder.name}/: Updated: {year_success_count}, Errors: {year_error_count}, Skipped: {year_skipped_count + year_skipped_problematic_count}\n\n")
+            log_file.flush()
+            
+            # Add to totals
+            total_success_count += year_success_count
+            total_error_count += year_error_count
+            total_skipped_count += year_skipped_count
+            total_skipped_problematic_count += year_skipped_problematic_count
+            
+            # Save checkpoint after each year
+            if not args.dry_run:
                 checkpoint.save()
-                print(f"  → Checkpoint saved ({idx}/{len(files_to_process)})")
+                print(f"  → Checkpoint saved after {year_folder.name}/\n")
         
-        # Final checkpoint save
-        if not args.dry_run:
-            checkpoint.save()
-            print(f"\n✅ Final checkpoint saved")
+        except KeyboardInterrupt:
+            print(f"\n\n⚠️  Interrupted by user")
+            if not args.dry_run:
+                checkpoint.save()
+                print(f"✅ Checkpoint saved - use --resume to continue")
+            log_file.write(f"\nInterrupted at: {datetime.now().isoformat()}\n")
+            log_file.close()
+            skipped_log_file.close()
+            return 1
     
     except KeyboardInterrupt:
         print(f"\n\n⚠️  Interrupted by user")
