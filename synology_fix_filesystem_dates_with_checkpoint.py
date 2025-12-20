@@ -147,11 +147,18 @@ def get_datetime_original(file_path):
 def run_exiftool_with_timeout(cmd, timeout_seconds=30):
     """Run exiftool with a hard timeout that actually kills the process."""
     process = None
+    timed_out = threading.Event()
     
     def kill_process():
         if process and process.poll() is None:
             try:
+                timed_out.set()
                 process.kill()
+                # Also try to kill any child processes
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except:
+                    pass
             except:
                 pass
     
@@ -160,22 +167,43 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            preexec_fn=os.setsid  # Create new process group for easier killing
         )
         
         # Set up timeout
         timer = threading.Timer(timeout_seconds, kill_process)
         timer.start()
         
-        stdout, stderr = process.communicate()
-        timer.cancel()
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds+5)  # Slightly longer timeout
+        except subprocess.TimeoutExpired:
+            # Force kill if communicate times out
+            kill_process()
+            process.wait(timeout=2)
+            raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+        finally:
+            timer.cancel()
+        
+        if timed_out.is_set():
+            raise subprocess.TimeoutExpired(cmd, timeout_seconds)
         
         return process.returncode, stdout, stderr
         
+    except subprocess.TimeoutExpired:
+        # Make sure process is dead
+        if process and process.poll() is None:
+            try:
+                process.kill()
+                process.wait(timeout=2)
+            except:
+                pass
+        raise
     except Exception as e:
         if process:
             try:
                 process.kill()
+                process.wait(timeout=2)
             except:
                 pass
         raise e
