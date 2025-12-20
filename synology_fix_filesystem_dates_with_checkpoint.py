@@ -445,7 +445,7 @@ def main():
         
         year_files = []
         
-        # Use Python rglob directly (find command hangs on this system)
+        # Use Python rglob with progress reporting
         print(f"  Using Python rglob to discover files...")
         sys.stdout.flush()
         log_file.write(f"  Using Python rglob for file discovery\n")
@@ -453,19 +453,38 @@ def main():
         
         try:
             file_count = 0
-            for ext in image_extensions:
-                files = list(year_folder.rglob(f'*{ext}'))
-                # Filter out SYNOPHOTO files
-                filtered_files = [f for f in files if 'SYNOPHOTO' not in str(f).upper()]
-                year_files.extend(filtered_files)
-                file_count += len(filtered_files)
-                if file_count % 1000 == 0:
-                    print(f"  ... discovered {file_count} files so far (excluding SYNOPHOTO)...")
-                    sys.stdout.flush()
-                    log_file.write(f"  ... discovered {file_count} files so far...\n")
-                    log_file.flush()
-            print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ (excluded SYNOPHOTO files)")
-            log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files)\n")
+            start_time = datetime.now()
+            
+            # Process each extension separately with progress
+            for ext_idx, ext in enumerate(image_extensions, 1):
+                print(f"  Searching for {ext} files ({ext_idx}/{len(image_extensions)})...")
+                sys.stdout.flush()
+                log_file.write(f"  Searching for {ext} files...\n")
+                log_file.flush()
+                
+                # Use iterator instead of list() to avoid loading everything at once
+                ext_files = []
+                for file_path in year_folder.rglob(f'*{ext}'):
+                    # Filter out SYNOPHOTO files immediately
+                    if 'SYNOPHOTO' not in str(file_path).upper():
+                        ext_files.append(file_path)
+                        file_count += 1
+                        if file_count % 100 == 0:
+                            elapsed = (datetime.now() - start_time).total_seconds()
+                            print(f"  ... discovered {file_count} files so far ({elapsed:.0f}s elapsed)...")
+                            sys.stdout.flush()
+                            log_file.write(f"  ... discovered {file_count} files so far...\n")
+                            log_file.flush()
+                
+                year_files.extend(ext_files)
+                print(f"  ✓ Found {len(ext_files)} {ext} files")
+                sys.stdout.flush()
+                log_file.write(f"  Found {len(ext_files)} {ext} files\n")
+                log_file.flush()
+            
+            elapsed = (datetime.now() - start_time).total_seconds()
+            print(f"  ✓ Found {len(year_files)} total files in {year_folder.name}/ (excluded SYNOPHOTO files, took {elapsed:.1f}s)")
+            log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files, took {elapsed:.1f}s)\n")
             log_file.flush()
         except Exception as e:
             print(f"  ❌ Error during file discovery: {e} (skipping this year)")
