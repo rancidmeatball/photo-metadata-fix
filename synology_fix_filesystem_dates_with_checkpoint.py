@@ -440,36 +440,68 @@ def main():
         # Discover files in this year folder
         print(f"Discovering files in {year_folder.name}/...")
         sys.stdout.flush()
+        log_file.write(f"Discovering files in {year_folder.name}/...\n")
+        log_file.flush()
         
+        year_files = []
+        
+        # Try find command first (faster)
         find_cmd = ['find', str(year_folder), '-type', 'f', '(',
                     '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
                     '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
                     '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
                     '-o', '-name', '*.HEIC', ')']
         
-        year_files = []
         try:
-            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=120)  # 2 min per year
+            print(f"  Running find command (timeout: 60s)...")
+            sys.stdout.flush()
+            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=60)  # 1 min per year
             if result.returncode == 0:
                 year_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using find")
+                log_file.write(f"  Found {len(year_files)} files using find command\n")
+                log_file.flush()
             else:
-                # Fallback to Python rglob if find fails
-                print(f"  ⚠️  find failed for {year_folder.name}, using rglob...")
+                print(f"  ⚠️  find command returned error, trying rglob...")
                 sys.stdout.flush()
-                for ext in image_extensions:
-                    year_files.extend(year_folder.rglob(f'*{ext}'))
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+                log_file.write(f"  find command failed, using rglob fallback\n")
+                log_file.flush()
+                raise Exception("find command failed")
         except subprocess.TimeoutExpired:
-            print(f"  ⚠️  Timeout discovering files in {year_folder.name}/ (skipping this year)")
-            log_file.write(f"⚠️  Skipped {year_folder.name}/ - timeout during file discovery\n\n")
+            print(f"  ⚠️  find command timed out after 60s, trying rglob...")
+            sys.stdout.flush()
+            log_file.write(f"  find command timed out, using rglob fallback\n")
             log_file.flush()
-            continue
         except Exception as e:
-            print(f"  ⚠️  Error discovering files in {year_folder.name}/: {e} (skipping this year)")
-            log_file.write(f"⚠️  Skipped {year_folder.name}/ - error: {e}\n\n")
+            print(f"  ⚠️  find command error: {e}, trying rglob...")
+            sys.stdout.flush()
+            log_file.write(f"  find command error: {e}, using rglob fallback\n")
             log_file.flush()
-            continue
+        
+        # Fallback to Python rglob if find fails or times out
+        if not year_files:
+            print(f"  Using Python rglob (this may take a while for large directories)...")
+            sys.stdout.flush()
+            log_file.write(f"  Using Python rglob for file discovery\n")
+            log_file.flush()
+            
+            try:
+                file_count = 0
+                for ext in image_extensions:
+                    files = list(year_folder.rglob(f'*{ext}'))
+                    year_files.extend(files)
+                    file_count += len(files)
+                    if file_count % 1000 == 0:
+                        print(f"  ... discovered {file_count} files so far...")
+                        sys.stdout.flush()
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using rglob")
+                log_file.write(f"  Found {len(year_files)} files using rglob\n")
+                log_file.flush()
+            except Exception as e:
+                print(f"  ❌ Error during rglob: {e} (skipping this year)")
+                log_file.write(f"⚠️  Skipped {year_folder.name}/ - rglob error: {e}\n\n")
+                log_file.flush()
+                continue
         
         if not year_files:
             print(f"  ⚠️  No files found in {year_folder.name}/, skipping...")
