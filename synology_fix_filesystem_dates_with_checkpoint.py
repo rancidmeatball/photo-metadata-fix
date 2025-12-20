@@ -572,34 +572,6 @@ def main():
                 if checkpoint.should_save() and not args.dry_run:
                     checkpoint.save()
                     print(f"  → Checkpoint saved ({idx}/{len(files_to_process)})")
-            
-            except KeyboardInterrupt:
-                print(f"\n\n⚠️  Interrupted by user")
-                if not args.dry_run:
-                    checkpoint.save()
-                    print(f"✅ Checkpoint saved - use --resume to continue")
-                log_file.write(f"\nInterrupted at: {datetime.now().isoformat()}\n")
-                log_file.close()
-                skipped_log_file.close()
-                return 1
-            
-            # Year summary
-            print(f"\n  ✅ Completed {year_folder.name}/:")
-            print(f"     Updated: {year_success_count}, Errors: {year_error_count}")
-            print(f"     Skipped (no EXIF): {year_skipped_count}, Skipped (problematic): {year_skipped_problematic_count}")
-            log_file.write(f"\nCompleted {year_folder.name}/: Updated: {year_success_count}, Errors: {year_error_count}, Skipped: {year_skipped_count + year_skipped_problematic_count}\n\n")
-            log_file.flush()
-            
-            # Add to totals
-            total_success_count += year_success_count
-            total_error_count += year_error_count
-            total_skipped_count += year_skipped_count
-            total_skipped_problematic_count += year_skipped_problematic_count
-            
-            # Save checkpoint after each year
-            if not args.dry_run:
-                checkpoint.save()
-                print(f"  → Checkpoint saved after {year_folder.name}/\n")
         
         except KeyboardInterrupt:
             print(f"\n\n⚠️  Interrupted by user")
@@ -610,15 +582,24 @@ def main():
             log_file.close()
             skipped_log_file.close()
             return 1
-    
-    except KeyboardInterrupt:
-        print(f"\n\n⚠️  Interrupted by user")
+        
+        # Year summary
+        print(f"\n  ✅ Completed {year_folder.name}/:")
+        print(f"     Updated: {year_success_count}, Errors: {year_error_count}")
+        print(f"     Skipped (no EXIF): {year_skipped_count}, Skipped (problematic): {year_skipped_problematic_count}")
+        log_file.write(f"\nCompleted {year_folder.name}/: Updated: {year_success_count}, Errors: {year_error_count}, Skipped: {year_skipped_count + year_skipped_problematic_count}\n\n")
+        log_file.flush()
+        
+        # Add to totals
+        total_success_count += year_success_count
+        total_error_count += year_error_count
+        total_skipped_count += year_skipped_count
+        total_skipped_problematic_count += year_skipped_problematic_count
+        
+        # Save checkpoint after each year
         if not args.dry_run:
             checkpoint.save()
-            print(f"✅ Checkpoint saved - use --resume to continue")
-        log_file.write(f"\nInterrupted at: {datetime.now().isoformat()}\n")
-        log_file.close()
-        return 1
+            print(f"  → Checkpoint saved after {year_folder.name}/\n")
     
     log_file.write("\n" + "="*80 + "\n")
     log_file.write(f"File System Dates Fix - Ended: {datetime.now().isoformat()}\n")
