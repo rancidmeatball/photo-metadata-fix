@@ -197,7 +197,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
             return False, message, None
             
     except subprocess.TimeoutExpired:
-        message = "⚠️  Timeout - skipping problematic file"
+        message = "⚠️  Timeout (30s) - skipping problematic file"
         if log_file:
             log_file.write(f"{file_path}: {message}\n")
             log_file.flush()
@@ -376,12 +376,12 @@ def main():
             if checkpoint.is_processed(file_path):
                 continue
             
-            # Log which file we're processing (for debugging stuck files)
+            # Log which file we're processing (ALWAYS log for stuck file detection)
             log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
             log_file.flush()
             
             try:
-                # Get EXIF date with timeout
+                # Get EXIF date (with timeout protection)
                 exif_date = get_datetime_original(file_path)
                 
                 if not exif_date:
@@ -391,7 +391,7 @@ def main():
                         print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
                     continue
                 
-                # Update file system date with timeout protection
+                # Update file system date (has 30 second timeout)
                 success, message, date_used = update_filesystem_date(
                     file_path, exif_date, dry_run=args.dry_run, log_file=log_file
                 )
