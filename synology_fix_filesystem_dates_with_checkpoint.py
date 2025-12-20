@@ -622,24 +622,28 @@ def main():
     
     log_file.write("\n" + "="*80 + "\n")
     log_file.write(f"File System Dates Fix - Ended: {datetime.now().isoformat()}\n")
-    log_file.write(f"Total: {len(files_to_process)}, Updated: {success_count}, Errors: {error_count}, Skipped (no EXIF): {skipped_count}, Skipped (problematic): {skipped_problematic_count}\n")
+    log_file.write(f"Total Updated: {total_success_count}, Errors: {total_error_count}, Skipped (no EXIF): {total_skipped_count}, Skipped (problematic): {total_skipped_problematic_count}\n")
     log_file.close()
     
     skipped_log_file.write("\n" + "="*80 + "\n")
     skipped_log_file.write(f"Skipped Problematic Files - Ended: {datetime.now().isoformat()}\n")
-    skipped_log_file.write(f"Total skipped: {skipped_problematic_count} files\n")
+    skipped_log_file.write(f"Total skipped: {total_skipped_problematic_count} files\n")
     skipped_log_file.close()
+    
+    # Final checkpoint save
+    if not args.dry_run:
+        checkpoint.save()
     
     # Summary
     print(f"\n{'='*80}")
-    print(f"SUMMARY")
+    print(f"FINAL SUMMARY")
     print(f"{'='*80}")
-    print(f"Total files: {len(files_to_process)}")
-    print(f"Updated: {success_count}")
-    print(f"Errors: {error_count}")
-    print(f"Skipped (no EXIF): {skipped_count}")
-    print(f"Skipped (problematic): {skipped_problematic_count}")
-    if skipped_problematic_count > 0:
+    print(f"Years processed: {len(year_folders)}")
+    print(f"Total Updated: {total_success_count}")
+    print(f"Total Errors: {total_error_count}")
+    print(f"Total Skipped (no EXIF): {total_skipped_count}")
+    print(f"Total Skipped (problematic): {total_skipped_problematic_count}")
+    if total_skipped_problematic_count > 0:
         print(f"Skipped files log: {args.skipped_log}")
     
     if args.dry_run:
