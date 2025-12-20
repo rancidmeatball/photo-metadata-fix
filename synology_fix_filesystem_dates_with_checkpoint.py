@@ -457,9 +457,14 @@ def main():
             sys.stdout.flush()
             result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=60)  # 1 min per year
             if result.returncode == 0:
-                year_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using find")
-                log_file.write(f"  Found {len(year_files)} files using find command\n")
+                # Filter out SYNOPHOTO files and empty strings
+                all_found = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
+                year_files = [f for f in all_found if 'SYNOPHOTO' not in str(f).upper()]
+                if len(all_found) != len(year_files):
+                    print(f"  ✓ Found {len(year_files)} files (excluded {len(all_found) - len(year_files)} SYNOPHOTO files)")
+                else:
+                    print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using find")
+                log_file.write(f"  Found {len(year_files)} files using find command (excluded SYNOPHOTO files)\n")
                 log_file.flush()
             else:
                 print(f"  ⚠️  find command returned error, trying rglob...")
@@ -489,13 +494,15 @@ def main():
                 file_count = 0
                 for ext in image_extensions:
                     files = list(year_folder.rglob(f'*{ext}'))
-                    year_files.extend(files)
-                    file_count += len(files)
+                    # Filter out SYNOPHOTO files
+                    filtered_files = [f for f in files if 'SYNOPHOTO' not in str(f).upper()]
+                    year_files.extend(filtered_files)
+                    file_count += len(filtered_files)
                     if file_count % 1000 == 0:
-                        print(f"  ... discovered {file_count} files so far...")
+                        print(f"  ... discovered {file_count} files so far (excluding SYNOPHOTO)...")
                         sys.stdout.flush()
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using rglob")
-                log_file.write(f"  Found {len(year_files)} files using rglob\n")
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using rglob (excluded SYNOPHOTO files)")
+                log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files)\n")
                 log_file.flush()
             except Exception as e:
                 print(f"  ❌ Error during rglob: {e} (skipping this year)")
@@ -506,6 +513,9 @@ def main():
         if not year_files:
             print(f"  ⚠️  No files found in {year_folder.name}/, skipping...")
             continue
+        
+        # Filter out SYNOPHOTO files (safety check - should already be filtered)
+        year_files = [f for f in year_files if 'SYNOPHOTO' not in str(f).upper()]
         
         # Filter out already processed files if resuming
         if resume_mode:
