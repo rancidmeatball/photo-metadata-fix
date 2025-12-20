@@ -41,6 +41,7 @@ class CheckpointManager:
             'stats': {
                 'updated': 0,
                 'skipped_no_exif': 0,
+                'skipped_problematic': 0,
                 'errors': 0
             }
         }
@@ -88,6 +89,8 @@ class CheckpointManager:
             self.data['stats']['updated'] += 1
         elif result == 'skipped_no_exif':
             self.data['stats']['skipped_no_exif'] += 1
+        elif result == 'skipped_problematic':
+            self.data['stats']['skipped_problematic'] = self.data['stats'].get('skipped_problematic', 0) + 1
         elif result == 'error':
             self.data['stats']['errors'] += 1
     
@@ -194,13 +197,13 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
             return False, message, None
             
     except subprocess.TimeoutExpired:
-        message = "✗ Timeout updating file"
+        message = "⚠️  Timeout - skipping problematic file"
         if log_file:
             log_file.write(f"{file_path}: {message}\n")
             log_file.flush()
         return False, message, None
     except Exception as e:
-        message = f"✗ Error: {str(e)}"
+        message = f"⚠️  Exception - skipping problematic file: {str(e)}"
         if log_file:
             log_file.write(f"{file_path}: {message}\n")
             log_file.flush()
@@ -230,6 +233,8 @@ def main():
                        help='Auto-confirm without prompting')
     parser.add_argument('--log-file', default='/volume1/photo/logs/filesystem_dates_fix.log',
                        help='Log file for changes')
+    parser.add_argument('--skipped-log', default='/volume1/photo/logs/filesystem_dates_skipped.log',
+                       help='Log file for skipped problematic files')
     
     args = parser.parse_args()
     
@@ -347,6 +352,14 @@ def main():
         log_file.write(f"Resuming from checkpoint: {checkpoint.data['current_index']} files processed\n")
     log_file.write("="*80 + "\n\n")
     
+    # Initialize skipped files log
+    skipped_log_path = Path(args.skipped_log)
+    skipped_log_path.parent.mkdir(parents=True, exist_ok=True)
+    skipped_log_file = open(skipped_log_path, 'a', encoding='utf-8')  # Append mode
+    skipped_log_file.write(f"\n{'='*80}\n")
+    skipped_log_file.write(f"Skipped Problematic Files - Started: {datetime.now().isoformat()}\n")
+    skipped_log_file.write("="*80 + "\n\n")
+    
     # Process files
     print(f"\n{'='*80}")
     print(f"Processing files...")
@@ -355,6 +368,7 @@ def main():
     success_count = 0
     error_count = 0
     skipped_count = 0
+    skipped_problematic_count = 0
     
     try:
         for idx, file_path in enumerate(files_to_process, 1):
@@ -362,37 +376,67 @@ def main():
             if checkpoint.is_processed(file_path):
                 continue
             
-            exif_date = get_datetime_original(file_path)
-            
-            if not exif_date:
-                checkpoint.mark_processed(file_path, 'skipped_no_exif')
-                skipped_count += 1
-                if idx <= 10:  # Show first 10 skipped
-                    print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
-                continue
-            
             # Log which file we're processing (for debugging stuck files)
-            if idx % 100 == 0 or idx <= 5:
-                log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
-                log_file.flush()
+            log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
+            log_file.flush()
             
-            success, message, date_used = update_filesystem_date(
-                file_path, exif_date, dry_run=args.dry_run, log_file=log_file
-            )
-            
-            if success:
-                checkpoint.mark_processed(file_path, 'updated', exif_date)
-                if idx <= 20 or idx % 100 == 0:
-                    print(f"[{idx}/{len(files_to_process)}] {message}")
-                success_count += 1
-            else:
-                checkpoint.mark_processed(file_path, 'error')
-                # Always log errors
-                log_file.write(f"ERROR [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+            try:
+                # Get EXIF date with timeout
+                exif_date = get_datetime_original(file_path)
+                
+                if not exif_date:
+                    checkpoint.mark_processed(file_path, 'skipped_no_exif')
+                    skipped_count += 1
+                    if idx <= 10:  # Show first 10 skipped
+                        print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
+                    continue
+                
+                # Update file system date with timeout protection
+                success, message, date_used = update_filesystem_date(
+                    file_path, exif_date, dry_run=args.dry_run, log_file=log_file
+                )
+                
+                if success:
+                    checkpoint.mark_processed(file_path, 'updated', exif_date)
+                    if idx <= 20 or idx % 100 == 0:
+                        print(f"[{idx}/{len(files_to_process)}] {message}")
+                    success_count += 1
+                else:
+                    # Check if it's a timeout or problematic file
+                    if "Timeout" in message or "Exception" in message or "skipping problematic" in message:
+                        # Mark as skipped_problematic and log to skipped file
+                        checkpoint.mark_processed(file_path, 'skipped_problematic')
+                        skipped_problematic_count += 1
+                        skipped_log_file.write(f"{file_path}\n")
+                        skipped_log_file.write(f"  Reason: {message}\n")
+                        skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
+                        skipped_log_file.flush()
+                        log_file.write(f"SKIPPED [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+                        log_file.flush()
+                        if skipped_problematic_count <= 10:  # Show first 10 skipped
+                            print(f"[{idx}/{len(files_to_process)}] ⚠️  SKIPPED: {file_path.name} - {message}")
+                    else:
+                        # Regular error
+                        checkpoint.mark_processed(file_path, 'error')
+                        log_file.write(f"ERROR [{idx}/{len(files_to_process)}]: {file_path} - {message}\n")
+                        log_file.flush()
+                        if error_count < 10:  # Show first 10 errors
+                            print(f"[{idx}/{len(files_to_process)}] {message}")
+                        error_count += 1
+                        
+            except Exception as e:
+                # Catch any unexpected exceptions and skip the file
+                error_msg = f"Exception processing {file_path}: {str(e)}"
+                log_file.write(f"EXCEPTION [{idx}/{len(files_to_process)}]: {error_msg}\n")
                 log_file.flush()
-                if error_count < 10:  # Show first 10 errors
-                    print(f"[{idx}/{len(files_to_process)}] {message}")
-                error_count += 1
+                checkpoint.mark_processed(file_path, 'skipped_problematic')
+                skipped_problematic_count += 1
+                skipped_log_file.write(f"{file_path}\n")
+                skipped_log_file.write(f"  Reason: Exception - {str(e)}\n")
+                skipped_log_file.write(f"  Timestamp: {datetime.now().isoformat()}\n\n")
+                skipped_log_file.flush()
+                if skipped_problematic_count <= 10:
+                    print(f"[{idx}/{len(files_to_process)}] ⚠️  SKIPPED (Exception): {file_path.name}")
             
             # Save checkpoint periodically
             if checkpoint.should_save() and not args.dry_run:
@@ -415,8 +459,13 @@ def main():
     
     log_file.write("\n" + "="*80 + "\n")
     log_file.write(f"File System Dates Fix - Ended: {datetime.now().isoformat()}\n")
-    log_file.write(f"Total: {len(files_to_process)}, Updated: {success_count}, Errors: {error_count}, Skipped: {skipped_count}\n")
+    log_file.write(f"Total: {len(files_to_process)}, Updated: {success_count}, Errors: {error_count}, Skipped (no EXIF): {skipped_count}, Skipped (problematic): {skipped_problematic_count}\n")
     log_file.close()
+    
+    skipped_log_file.write("\n" + "="*80 + "\n")
+    skipped_log_file.write(f"Skipped Problematic Files - Ended: {datetime.now().isoformat()}\n")
+    skipped_log_file.write(f"Total skipped: {skipped_problematic_count} files\n")
+    skipped_log_file.close()
     
     # Summary
     print(f"\n{'='*80}")
@@ -426,6 +475,8 @@ def main():
     print(f"Updated: {success_count}")
     print(f"Errors: {error_count}")
     print(f"Skipped (no EXIF): {skipped_count}")
+    print(f"Skipped (problematic): {skipped_problematic_count}")
+    print(f"Skipped files log: {args.skipped_log}")
     
     if args.dry_run:
         print(f"\n⚠️  DRY RUN - No files modified")
