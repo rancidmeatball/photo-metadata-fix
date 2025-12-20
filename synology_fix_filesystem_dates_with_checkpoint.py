@@ -542,9 +542,15 @@ def main():
                     processed_count += 1
                 else:
                     files_to_process.append(f)
-                if idx % 100 == 0:
+                if idx % 100 == 0 or idx == total_files:
                     print(f"  ... checked {idx}/{total_files} files...")
                     sys.stdout.flush()
+                    log_file.write(f"  ... checked {idx}/{total_files} files...\n")
+                    log_file.flush()
+            print(f"  ✓ Checkpoint check complete")
+            sys.stdout.flush()
+            log_file.write(f"  ✓ Checkpoint check complete\n")
+            log_file.flush()
             print(f"  Already processed: {processed_count}")
             print(f"  Remaining: {len(files_to_process)} files\n")
             log_file.write(f"  Already processed: {processed_count}, Remaining: {len(files_to_process)}\n")
