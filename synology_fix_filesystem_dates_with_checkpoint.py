@@ -27,7 +27,7 @@ import threading
 import signal
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ============================================================================
 # CHECKPOINT SYSTEM
@@ -240,9 +240,19 @@ def extract_date_from_filename(filename):
     
     return None
 
-def get_datetime_original(file_path, use_filename_fallback=True):
+def get_datetime_original(file_path, use_filename_fallback=True, year_folder=None, placeholder_offset=0):
     """Get DateTimeOriginal from file using exiftool with timeout.
-    Falls back to filename if EXIF is missing and use_filename_fallback=True."""
+    Falls back to filename if EXIF is missing, then to year folder if available.
+    
+    Args:
+        file_path: Path to the file
+        use_filename_fallback: Whether to try filename if EXIF is missing
+        year_folder: Path object for the year folder (e.g., /volume1/photo/2015)
+        placeholder_offset: Seconds to add for staggering placeholder dates
+    
+    Returns:
+        (datetime, source) tuple where source is "EXIF", "filename", "year_folder", or None
+    """
     file_path = Path(file_path)
     
     # Try EXIF first
@@ -267,6 +277,18 @@ def get_datetime_original(file_path, use_filename_fallback=True):
         filename_date = extract_date_from_filename(file_path.name)
         if filename_date:
             return filename_date, "filename"
+    
+    # Final fallback: use year folder to create placeholder date
+    if year_folder:
+        try:
+            year = int(year_folder.name)
+            if 2001 <= year <= 2025:
+                # Use January 31st, 12:00:00 + offset seconds for staggering
+                base_date = datetime(year, 1, 31, 12, 0, 0)
+                placeholder_date = base_date + timedelta(seconds=placeholder_offset)
+                return placeholder_date, "year_folder"
+        except (ValueError, AttributeError):
+            pass
     
     return None, None
 
@@ -628,6 +650,7 @@ def main():
         year_error_count = 0
         year_skipped_count = 0
         year_skipped_problematic_count = 0
+        year_placeholder_count = 0  # Track how many files used year folder placeholder
         
         try:
             for idx, file_path in enumerate(files_to_process, 1):
@@ -640,21 +663,38 @@ def main():
                 log_file.flush()
                 
                 try:
-                    # Get date from EXIF, fallback to filename if missing
-                    date_result = get_datetime_original(file_path, use_filename_fallback=True)
+                    # Get date from EXIF, fallback to filename, then year folder
+                    # Stagger placeholder dates by 2 seconds per file
+                    placeholder_offset = year_placeholder_count * 2
+                    date_result = get_datetime_original(
+                        file_path, 
+                        use_filename_fallback=True, 
+                        year_folder=year_folder,
+                        placeholder_offset=placeholder_offset
+                    )
                     exif_date = date_result[0] if date_result[0] else None
                     date_source = date_result[1] if date_result[1] else None
+                    
+                    # Track placeholder usage for staggering
+                    if date_source == "year_folder":
+                        year_placeholder_count += 1
                     
                     if not exif_date:
                         checkpoint.mark_processed(file_path, 'skipped_no_exif')
                         year_skipped_count += 1
                         if idx <= 10:  # Show first 10 skipped
-                            print(f"  [{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No date found (no EXIF and filename doesn't match pattern)")
+                            print(f"  [{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No date found (no EXIF, filename doesn't match, and not in year folder)")
                         continue
                     
-                    # Log if we used filename instead of EXIF
+                    # Log source of date
                     if date_source == "filename" and idx <= 20:
+                        print(f"  [{idx}/{len(files_to_process)}] ℹ️  {file_path.name}: Using date from filename")
                         log_file.write(f"  [{idx}/{len(files_to_process)}] ℹ️  {file_path.name}: Using date from filename\n")
+                        log_file.flush()
+                    elif date_source == "year_folder":
+                        if idx <= 20 or year_placeholder_count <= 10:
+                            print(f"  [{idx}/{len(files_to_process)}] ℹ️  {file_path.name}: Using placeholder date from year folder ({year_folder.name})")
+                        log_file.write(f"  [{idx}/{len(files_to_process)}] ℹ️  {file_path.name}: Using placeholder date from year folder ({year_folder.name})\n")
                         log_file.flush()
                     
                     # Update file system date (has 30 second timeout with force kill)
@@ -722,8 +762,10 @@ def main():
         # Year summary
         print(f"\n  ✅ Completed {year_folder.name}/:")
         print(f"     Updated: {year_success_count}, Errors: {year_error_count}")
-        print(f"     Skipped (no EXIF): {year_skipped_count}, Skipped (problematic): {year_skipped_problematic_count}")
-        log_file.write(f"\nCompleted {year_folder.name}/: Updated: {year_success_count}, Errors: {year_error_count}, Skipped: {year_skipped_count + year_skipped_problematic_count}\n\n")
+        print(f"     Skipped (no date): {year_skipped_count}, Skipped (problematic): {year_skipped_problematic_count}")
+        if year_placeholder_count > 0:
+            print(f"     Used year folder placeholder: {year_placeholder_count}")
+        log_file.write(f"\nCompleted {year_folder.name}/: Updated: {year_success_count}, Errors: {year_error_count}, Skipped: {year_skipped_count + year_skipped_problematic_count}, Placeholder: {year_placeholder_count}\n\n")
         log_file.flush()
         
         # Add to totals
