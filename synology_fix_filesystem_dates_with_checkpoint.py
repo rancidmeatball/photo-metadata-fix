@@ -445,70 +445,33 @@ def main():
         
         year_files = []
         
-        # Try find command first (faster)
-        find_cmd = ['find', str(year_folder), '-type', 'f', '(',
-                    '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
-                    '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
-                    '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
-                    '-o', '-name', '*.HEIC', ')']
+        # Use Python rglob directly (find command hangs on this system)
+        print(f"  Using Python rglob to discover files...")
+        sys.stdout.flush()
+        log_file.write(f"  Using Python rglob for file discovery\n")
+        log_file.flush()
         
         try:
-            print(f"  Running find command (timeout: 60s)...")
-            sys.stdout.flush()
-            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=60)  # 1 min per year
-            if result.returncode == 0:
-                # Filter out SYNOPHOTO files and empty strings
-                all_found = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-                year_files = [f for f in all_found if 'SYNOPHOTO' not in str(f).upper()]
-                if len(all_found) != len(year_files):
-                    print(f"  ✓ Found {len(year_files)} files (excluded {len(all_found) - len(year_files)} SYNOPHOTO files)")
-                else:
-                    print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using find")
-                log_file.write(f"  Found {len(year_files)} files using find command (excluded SYNOPHOTO files)\n")
-                log_file.flush()
-            else:
-                print(f"  ⚠️  find command returned error, trying rglob...")
-                sys.stdout.flush()
-                log_file.write(f"  find command failed, using rglob fallback\n")
-                log_file.flush()
-                raise Exception("find command failed")
-        except subprocess.TimeoutExpired:
-            print(f"  ⚠️  find command timed out after 60s, trying rglob...")
-            sys.stdout.flush()
-            log_file.write(f"  find command timed out, using rglob fallback\n")
+            file_count = 0
+            for ext in image_extensions:
+                files = list(year_folder.rglob(f'*{ext}'))
+                # Filter out SYNOPHOTO files
+                filtered_files = [f for f in files if 'SYNOPHOTO' not in str(f).upper()]
+                year_files.extend(filtered_files)
+                file_count += len(filtered_files)
+                if file_count % 1000 == 0:
+                    print(f"  ... discovered {file_count} files so far (excluding SYNOPHOTO)...")
+                    sys.stdout.flush()
+                    log_file.write(f"  ... discovered {file_count} files so far...\n")
+                    log_file.flush()
+            print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ (excluded SYNOPHOTO files)")
+            log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files)\n")
             log_file.flush()
         except Exception as e:
-            print(f"  ⚠️  find command error: {e}, trying rglob...")
-            sys.stdout.flush()
-            log_file.write(f"  find command error: {e}, using rglob fallback\n")
+            print(f"  ❌ Error during file discovery: {e} (skipping this year)")
+            log_file.write(f"⚠️  Skipped {year_folder.name}/ - discovery error: {e}\n\n")
             log_file.flush()
-        
-        # Fallback to Python rglob if find fails or times out
-        if not year_files:
-            print(f"  Using Python rglob (this may take a while for large directories)...")
-            sys.stdout.flush()
-            log_file.write(f"  Using Python rglob for file discovery\n")
-            log_file.flush()
-            
-            try:
-                file_count = 0
-                for ext in image_extensions:
-                    files = list(year_folder.rglob(f'*{ext}'))
-                    # Filter out SYNOPHOTO files
-                    filtered_files = [f for f in files if 'SYNOPHOTO' not in str(f).upper()]
-                    year_files.extend(filtered_files)
-                    file_count += len(filtered_files)
-                    if file_count % 1000 == 0:
-                        print(f"  ... discovered {file_count} files so far (excluding SYNOPHOTO)...")
-                        sys.stdout.flush()
-                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/ using rglob (excluded SYNOPHOTO files)")
-                log_file.write(f"  Found {len(year_files)} files using rglob (excluded SYNOPHOTO files)\n")
-                log_file.flush()
-            except Exception as e:
-                print(f"  ❌ Error during rglob: {e} (skipping this year)")
-                log_file.write(f"⚠️  Skipped {year_folder.name}/ - rglob error: {e}\n\n")
-                log_file.flush()
-                continue
+            continue
         
         if not year_files:
             print(f"  ⚠️  No files found in {year_folder.name}/, skipping...")
