@@ -505,16 +505,38 @@ def main():
             continue
         
         # Filter out SYNOPHOTO files (safety check - should already be filtered)
+        print(f"  Filtering SYNOPHOTO files...")
+        sys.stdout.flush()
+        log_file.write(f"  Filtering SYNOPHOTO files...\n")
+        log_file.flush()
         year_files = [f for f in year_files if 'SYNOPHOTO' not in str(f).upper()]
+        print(f"  After SYNOPHOTO filter: {len(year_files)} files")
+        sys.stdout.flush()
+        log_file.write(f"  After SYNOPHOTO filter: {len(year_files)} files\n")
+        log_file.flush()
         
         # Filter out already processed files if resuming
+        print(f"  Checking for already processed files...")
+        sys.stdout.flush()
+        log_file.write(f"  Checking for already processed files...\n")
+        log_file.flush()
         if resume_mode:
-            files_to_process = [f for f in year_files if not checkpoint.is_processed(f)]
-            print(f"  Already processed: {len(year_files) - len(files_to_process)}")
+            files_to_process = []
+            processed_count = 0
+            for f in year_files:
+                if checkpoint.is_processed(f):
+                    processed_count += 1
+                else:
+                    files_to_process.append(f)
+            print(f"  Already processed: {processed_count}")
             print(f"  Remaining: {len(files_to_process)} files\n")
+            log_file.write(f"  Already processed: {processed_count}, Remaining: {len(files_to_process)}\n")
+            log_file.flush()
         else:
             files_to_process = year_files
             print(f"  Files to process: {len(files_to_process)}\n")
+            log_file.write(f"  Files to process: {len(files_to_process)}\n")
+            log_file.flush()
         
         if args.limit:
             files_to_process = files_to_process[:args.limit]
