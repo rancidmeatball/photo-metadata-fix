@@ -299,6 +299,8 @@ def main():
                        help='Checkpoint file path')
     parser.add_argument('--resume', action='store_true',
                        help='Resume from last checkpoint')
+    parser.add_argument('--year', type=str,
+                       help='Process only a specific year folder (e.g., 2013, 2021). If not specified, processes all years sequentially.')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be done without making changes')
     parser.add_argument('--limit', type=int,
@@ -319,7 +321,10 @@ def main():
     print(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
     print(f"Checkpoint: {args.checkpoint}")
     print(f"Log: {args.log_file}")
-    print(f"Note: Only processes year-named folders (2000-2025)")
+    if args.year:
+        print(f"Processing year: {args.year} only")
+    else:
+        print(f"Note: Will process all year-named folders (2000-2025) sequentially")
     if args.limit:
         print(f"Limit: {args.limit} files")
     print(f"{'='*80}\n")
@@ -371,74 +376,61 @@ def main():
         print(f"   Looking for folders named: 2000-2025")
         return 1
     
-    print(f"Found {len(year_folders)} year-named folders:")
+    # Filter to specific year if requested
+    if args.year:
+        year_folders = [yf for yf in year_folders if yf.name == args.year]
+        if not year_folders:
+            print(f"❌ Year folder '{args.year}' not found in {args.directory}")
+            print(f"   Available years: {sorted([yf.name for yf in directory.iterdir() if yf.is_dir() and year_pattern.match(yf.name)])}")
+            return 1
+    
+    print(f"Found {len(year_folders)} year-named folder(s):")
     for yf in sorted(year_folders):
         print(f"  - {yf.name}")
     print()
     
-    # Find image files only in year-named folders
-    # Use find command for MUCH faster discovery (avoids Python rglob on huge directories)
-    image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
+    # Process each year folder separately (much faster and easier to track)
     all_files = []
+    image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
     
-    print("Discovering files (this may take a few minutes for large directories)...")
-    sys.stdout.flush()
-    
-    # Use find command for faster file discovery (much faster than Python rglob)
-    find_cmd = ['find']
-    for year_folder in year_folders:
-        find_cmd.append(str(year_folder))
-    find_cmd.extend(['-type', 'f', '(', 
-                     '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
-                     '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
-                     '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
-                     '-o', '-name', '*.HEIC', ')'])
-    
-    try:
-        result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=600)  # 10 min timeout
-        if result.returncode == 0:
-            all_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-            print(f"✓ Found {len(all_files)} files using find command")
-        else:
-            # Fallback to Python rglob if find fails
-            print("⚠️  find command failed, using Python rglob (slower)...")
-            sys.stdout.flush()
-            for year_folder in year_folders:
-                for ext in image_extensions:
-                    files = list(year_folder.rglob(f'*{ext}'))
-                    all_files.extend(files)
-                    if len(all_files) % 10000 == 0:
-                        print(f"  Discovered {len(all_files)} files so far...")
-                        sys.stdout.flush()
-    except subprocess.TimeoutExpired:
-        print("⚠️  File discovery timed out after 10 minutes")
-        print("   Trying to use checkpoint file list if available...")
-        if resume_mode and checkpoint.data.get('processed_files'):
-            # Try to reconstruct file list from checkpoint
-            if checkpoint.data.get('all_files'):
-                all_files = [Path(f) for f in checkpoint.data['all_files']]
-                print(f"✓ Using file list from checkpoint: {len(all_files)} files")
-            else:
-                print("❌ Cannot continue without file list")
-                return 1
-        else:
-            print("❌ File discovery failed and no checkpoint available")
-            return 1
-    except Exception as e:
-        print(f"⚠️  Error during file discovery: {e}")
-        print("   Falling back to Python rglob...")
+    for year_folder in sorted(year_folders):
+        print(f"Discovering files in {year_folder.name}/...")
         sys.stdout.flush()
-        for year_folder in year_folders:
-            for ext in image_extensions:
-                files = list(year_folder.rglob(f'*{ext}'))
-                all_files.extend(files)
-                if len(all_files) % 10000 == 0:
-                    print(f"  Discovered {len(all_files)} files so far...")
-                    sys.stdout.flush()
+        
+        # Use find command for faster file discovery (one year at a time is much faster)
+        find_cmd = ['find', str(year_folder), '-type', 'f', '(',
+                    '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
+                    '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
+                    '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
+                    '-o', '-name', '*.HEIC', ')']
+        
+        try:
+            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=120)  # 2 min per year
+            if result.returncode == 0:
+                year_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
+                all_files.extend(year_files)
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+            else:
+                # Fallback to Python rglob if find fails
+                print(f"  ⚠️  find failed for {year_folder.name}, using rglob...")
+                sys.stdout.flush()
+                year_files = []
+                for ext in image_extensions:
+                    year_files.extend(year_folder.rglob(f'*{ext}'))
+                all_files.extend(year_files)
+                print(f"  ✓ Found {len(year_files)} files in {year_folder.name}/")
+        except subprocess.TimeoutExpired:
+            print(f"  ⚠️  Timeout discovering files in {year_folder.name}/ (skipping this year)")
+            continue
+        except Exception as e:
+            print(f"  ⚠️  Error discovering files in {year_folder.name}/: {e} (skipping this year)")
+            continue
     
     if not all_files:
-        print(f"❌ No image files found in {args.directory}")
+        print(f"❌ No image files found in specified year folder(s)")
         return 1
+    
+    print(f"\n✓ Total files to process: {len(all_files)}\n")
     
     # Save file list to checkpoint for faster resume
     if not resume_mode:
