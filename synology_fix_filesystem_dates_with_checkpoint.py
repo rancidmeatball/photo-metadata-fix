@@ -542,8 +542,9 @@ def main():
                 # Use iterator instead of list() to avoid loading everything at once
                 ext_files = []
                 for file_path in year_folder.rglob(f'*{ext}'):
-                    # Filter out SYNOPHOTO files immediately
-                    if 'SYNOPHOTO' not in str(file_path).upper():
+                    # Filter out SYNOPHOTO files and .THM thumbnail files
+                    file_str = str(file_path).upper()
+                    if 'SYNOPHOTO' not in file_str and not file_path.name.upper().endswith('.THM'):
                         ext_files.append(file_path)
                         file_count += 1
                         if file_count % 100 == 0:
@@ -561,8 +562,8 @@ def main():
             
             elapsed = (datetime.now() - start_time).total_seconds()
             total_count = len(year_files)
-            print(f"  ✓ Found {total_count} total files in {year_folder.name}/ (excluded SYNOPHOTO files, took {elapsed:.1f}s)")
-            log_file.write(f"  Found {total_count} files using rglob (excluded SYNOPHOTO files, took {elapsed:.1f}s)\n")
+            print(f"  ✓ Found {total_count} total files in {year_folder.name}/ (excluded SYNOPHOTO and .THM files, took {elapsed:.1f}s)")
+            log_file.write(f"  Found {total_count} files using rglob (excluded SYNOPHOTO and .THM files, took {elapsed:.1f}s)\n")
             log_file.flush()
             print(f"  Continuing to filter and process files...")
             sys.stdout.flush()
