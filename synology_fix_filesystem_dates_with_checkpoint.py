@@ -125,77 +125,45 @@ def translate_mac_path_to_synology(mac_path):
         return mac_path.replace('/Volumes/photo-1/', '/volume1/photo/')
     return mac_path
 
-def get_datetime_original(file_path):
-    """Get DateTimeOriginal from file using exiftool."""
-    try:
-        result = subprocess.run(
-            ['exiftool', '-s', '-s', '-s', '-DateTimeOriginal', str(file_path)],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            date_str = result.stdout.strip()
-            try:
-                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
-            except:
-                pass
-    except:
-        pass
-    return None
-
 def run_exiftool_with_timeout(cmd, timeout_seconds=30):
-    """Run exiftool with a hard timeout that actually kills the process."""
+    """Run exiftool with a robust timeout that forcefully kills stuck processes."""
     process = None
     timed_out = threading.Event()
     
     def kill_process():
+        """Forcefully kill the process and its children."""
         if process and process.poll() is None:
             try:
                 timed_out.set()
-                process.kill()
-                # Also try to kill any child processes
+                # Try to kill the process group
                 try:
-                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    pgid = os.getpgid(process.pid)
+                    os.killpg(pgid, signal.SIGKILL)
                 except:
-                    pass
+                    # Fallback to killing just the process
+                    try:
+                        process.kill()
+                    except:
+                        pass
             except:
                 pass
     
-    # Try to use setsid if available (Unix only)
-    preexec_fn = None
     try:
-        if hasattr(os, 'setsid'):
-            preexec_fn = os.setsid
-    except:
-        pass
-    
-    try:
-        popen_kwargs = {
-            'cmd': cmd,
-            'stdout': subprocess.PIPE,
-            'stderr': subprocess.PIPE,
-            'text': True
-        }
-        if preexec_fn:
-            popen_kwargs['preexec_fn'] = preexec_fn
+        # Use Popen for better control
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            preexec_fn=os.setsid if hasattr(os, 'setsid') else None
+        )
         
-        process = subprocess.Popen(**popen_kwargs)
-        
-        # Set up timeout
+        # Set up timeout timer
         timer = threading.Timer(timeout_seconds, kill_process)
         timer.start()
         
         try:
-            # Use communicate with timeout if available (Python 3.3+)
-            if hasattr(subprocess.Popen, 'communicate'):
-                try:
-                    stdout, stderr = process.communicate(timeout=timeout_seconds+5)
-                except TypeError:
-                    # Python < 3.3 doesn't support timeout in communicate
-                    stdout, stderr = process.communicate()
-            else:
-                stdout, stderr = process.communicate()
+            stdout, stderr = process.communicate(timeout=timeout_seconds + 5)
         except subprocess.TimeoutExpired:
             # Force kill if communicate times out
             kill_process()
@@ -216,11 +184,8 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
         # Make sure process is dead
         if process and process.poll() is None:
             try:
-                process.kill()
-                try:
-                    process.wait(timeout=2)
-                except:
-                    pass
+                kill_process()
+                process.wait(timeout=2)
             except:
                 pass
         raise
@@ -228,19 +193,34 @@ def run_exiftool_with_timeout(cmd, timeout_seconds=30):
         if process:
             try:
                 process.kill()
-                try:
-                    process.wait(timeout=2)
-                except:
-                    pass
+                process.wait(timeout=2)
             except:
                 pass
         raise e
+
+def get_datetime_original(file_path):
+    """Get DateTimeOriginal from file using exiftool with timeout."""
+    try:
+        cmd = ['exiftool', '-s', '-s', '-s', '-DateTimeOriginal', str(file_path)]
+        returncode, stdout, stderr = run_exiftool_with_timeout(cmd, timeout_seconds=10)
+        
+        if returncode == 0 and stdout.strip():
+            date_str = stdout.strip()
+            try:
+                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+            except:
+                pass
+    except subprocess.TimeoutExpired:
+        # Timeout getting EXIF - file is problematic
+        return None
+    except:
+        pass
+    return None
 
 def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
     """Update file system dates to match EXIF DateTimeOriginal.
     
     ONLY updates file system dates - NEVER touches EXIF metadata.
-    Uses robust timeout mechanism to prevent hanging.
     """
     file_path = Path(file_path)
     
@@ -265,7 +245,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
         # -FileModifyDate: file system modification date
         # -FileCreateDate: file system creation date (if supported)
         # This does NOT modify any EXIF metadata
-        # Use robust timeout that actually kills the process
+        # Use robust timeout that forcefully kills stuck processes
         cmd = [
             'exiftool', '-overwrite_original',
             f'-FileModifyDate={date_str}',
@@ -284,10 +264,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
             return True, message, exif_date
         else:
             error_msg = stderr.strip() if stderr else stdout.strip()
-            if "killed" in error_msg.lower() or returncode == -9:
-                message = "⚠️  Timeout (30s) - process killed, skipping problematic file"
-            else:
-                message = f"✗ Error: {error_msg}"
+            message = f"✗ Error: {error_msg}"
             if log_file:
                 log_file.write(f"{file_path}: {message}\n")
                 log_file.flush()
@@ -400,73 +377,15 @@ def main():
     print()
     
     # Find image files only in year-named folders
-    # Use find command for faster discovery (avoids Python rglob on huge directories)
     image_extensions = ['.jpg', '.jpeg', '.heic', '.png', '.tiff', '.tif', '.JPG', '.JPEG', '.HEIC']
     all_files = []
-    
-    print("Discovering files (this may take a while for large directories)...")
-    sys.stdout.flush()
-    
-    # Use find command for faster file discovery
-    import tempfile
-    find_cmd = ['find']
     for year_folder in year_folders:
-        find_cmd.append(str(year_folder))
-    find_cmd.extend(['-type', 'f', '-name', '*.jpg', '-o', '-name', '*.jpeg', '-o', 
-                     '-name', '*.heic', '-o', '-name', '*.png', '-o', '-name', '*.tiff', 
-                     '-o', '-name', '*.tif', '-o', '-name', '*.JPG', '-o', '-name', '*.JPEG', 
-                     '-o', '-name', '*.HEIC'])
-    
-    try:
-        result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=300)  # 5 min timeout
-        if result.returncode == 0:
-            all_files = [Path(f.strip()) for f in result.stdout.split('\n') if f.strip()]
-            print(f"Found {len(all_files)} files using find command")
-        else:
-            # Fallback to Python rglob if find fails
-            print("find command failed, using Python rglob (slower)...")
-            sys.stdout.flush()
-            for year_folder in year_folders:
-                for ext in image_extensions:
-                    files = list(year_folder.rglob(f'*{ext}'))
-                    all_files.extend(files)
-                    if len(all_files) % 10000 == 0:
-                        print(f"  Discovered {len(all_files)} files so far...")
-                        sys.stdout.flush()
-    except subprocess.TimeoutExpired:
-        print("⚠️  File discovery timed out after 5 minutes")
-        print("   Using checkpoint to resume from last known position...")
-        if resume_mode and checkpoint.data.get('processed_files'):
-            # Use files from checkpoint to continue
-            processed_paths = {Path(p['path']) for p in checkpoint.data['processed_files']}
-            # Try to discover files incrementally
-            print("   Attempting incremental file discovery...")
-            sys.stdout.flush()
-            # Just use the checkpoint's file list if available
-            if checkpoint.data.get('all_files'):
-                all_files = [Path(f) for f in checkpoint.data['all_files']]
-            else:
-                print("❌ Cannot continue without file list")
-                return 1
-    except Exception as e:
-        print(f"⚠️  Error during file discovery: {e}")
-        print("   Falling back to Python rglob...")
-        sys.stdout.flush()
-        for year_folder in year_folders:
-            for ext in image_extensions:
-                files = list(year_folder.rglob(f'*{ext}'))
-                all_files.extend(files)
-                if len(all_files) % 10000 == 0:
-                    print(f"  Discovered {len(all_files)} files so far...")
-                    sys.stdout.flush()
+        for ext in image_extensions:
+            all_files.extend(year_folder.rglob(f'*{ext}'))
     
     if not all_files:
         print(f"❌ No image files found in {args.directory}")
         return 1
-    
-    # Save file list to checkpoint for faster resume
-    if not resume_mode:
-        checkpoint.data['all_files'] = [str(f) for f in all_files]
     
     # Filter out already processed files if resuming
     if resume_mode:
@@ -510,7 +429,7 @@ def main():
     # Initialize skipped files log
     skipped_log_path = Path(args.skipped_log)
     skipped_log_path.parent.mkdir(parents=True, exist_ok=True)
-    skipped_log_file = open(skipped_log_path, 'a', encoding='utf-8')  # Append mode
+    skipped_log_file = open(skipped_log_path, 'a', encoding='utf-8')
     skipped_log_file.write(f"\n{'='*80}\n")
     skipped_log_file.write(f"Skipped Problematic Files - Started: {datetime.now().isoformat()}\n")
     skipped_log_file.write("="*80 + "\n\n")
@@ -531,7 +450,7 @@ def main():
             if checkpoint.is_processed(file_path):
                 continue
             
-            # Log which file we're processing (ALWAYS log for stuck file detection)
+            # ALWAYS log which file we're processing (for stuck file detection)
             log_file.write(f"Processing [{idx}/{len(files_to_process)}]: {file_path}\n")
             log_file.flush()
             
@@ -546,7 +465,7 @@ def main():
                         print(f"[{idx}/{len(files_to_process)}] ⚠️  {file_path.name}: No EXIF DateTimeOriginal")
                     continue
                 
-                # Update file system date (has 30 second timeout)
+                # Update file system date (has 30 second timeout with force kill)
                 success, message, date_used = update_filesystem_date(
                     file_path, exif_date, dry_run=args.dry_run, log_file=log_file
                 )
@@ -631,7 +550,8 @@ def main():
     print(f"Errors: {error_count}")
     print(f"Skipped (no EXIF): {skipped_count}")
     print(f"Skipped (problematic): {skipped_problematic_count}")
-    print(f"Skipped files log: {args.skipped_log}")
+    if skipped_problematic_count > 0:
+        print(f"Skipped files log: {args.skipped_log}")
     
     if args.dry_run:
         print(f"\n⚠️  DRY RUN - No files modified")
