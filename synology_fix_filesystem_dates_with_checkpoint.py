@@ -2,8 +2,11 @@
 """
 Synology file system date fixer WITH CHECKPOINT/RESUME support.
 
-Updates file system dates (FileModifyDate, FileCreateDate) to match EXIF DateTimeOriginal.
+Updates file system dates (FileModifyDate) to match EXIF DateTimeOriginal.
+Falls back to filename date (IMG_yyyyMMdd_HHmmss pattern) if EXIF is missing.
 NEVER modifies EXIF metadata - only updates file system dates.
+
+Note: Only sets FileModifyDate (ext4 doesn't support FileCreateDate/birthtime).
 
 Default: Processes /volume1/photo recursively
 
@@ -11,6 +14,7 @@ FEATURES:
 - Checkpoint system: saves progress every 100 files
 - Resume support: --resume to continue from last checkpoint
 - Crash recovery: automatically resumes if interrupted
+- Filename date fallback when EXIF is missing
 - Detailed logging
 - Background execution ready
 """
@@ -277,7 +281,7 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
         return False, "File not found", None
     
     if not exif_date:
-        return False, "No EXIF DateTimeOriginal found", None
+        return False, "No date found", None
     
     if dry_run:
         message = f"[DRY RUN] Would set file system date to {exif_date.strftime('%Y:%m:%d %H:%M:%S')}"
