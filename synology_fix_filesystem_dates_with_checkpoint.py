@@ -19,6 +19,8 @@ import os
 import sys
 import json
 import subprocess
+import threading
+import signal
 from pathlib import Path
 from datetime import datetime
 
@@ -142,10 +144,47 @@ def get_datetime_original(file_path):
         pass
     return None
 
+def run_exiftool_with_timeout(cmd, timeout_seconds=30):
+    """Run exiftool with a hard timeout that actually kills the process."""
+    process = None
+    
+    def kill_process():
+        if process and process.poll() is None:
+            try:
+                process.kill()
+            except:
+                pass
+    
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Set up timeout
+        timer = threading.Timer(timeout_seconds, kill_process)
+        timer.start()
+        
+        stdout, stderr = process.communicate()
+        timer.cancel()
+        
+        return process.returncode, stdout, stderr
+        
+    except Exception as e:
+        if process:
+            try:
+                process.kill()
+            except:
+                pass
+        raise e
+
 def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
     """Update file system dates to match EXIF DateTimeOriginal.
     
     ONLY updates file system dates - NEVER touches EXIF metadata.
+    Uses robust timeout mechanism to prevent hanging.
     """
     file_path = Path(file_path)
     
@@ -170,18 +209,17 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
         # -FileModifyDate: file system modification date
         # -FileCreateDate: file system creation date (if supported)
         # This does NOT modify any EXIF metadata
-        # Increased timeout to 30 seconds for large/problematic files
-        result = subprocess.run(
-            ['exiftool', '-overwrite_original',
-             f'-FileModifyDate={date_str}',
-             f'-FileCreateDate={date_str}',
-             str(file_path)],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        # Use robust timeout that actually kills the process
+        cmd = [
+            'exiftool', '-overwrite_original',
+            f'-FileModifyDate={date_str}',
+            f'-FileCreateDate={date_str}',
+            str(file_path)
+        ]
         
-        if result.returncode == 0:
+        returncode, stdout, stderr = run_exiftool_with_timeout(cmd, timeout_seconds=30)
+        
+        if returncode == 0:
             message = f"✓ Updated file system date to {date_str}"
             if log_file:
                 log_file.write(f"{file_path}: {message}\n")
@@ -189,8 +227,11 @@ def update_filesystem_date(file_path, exif_date, dry_run=False, log_file=None):
                 log_file.flush()
             return True, message, exif_date
         else:
-            error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
-            message = f"✗ Error: {error_msg}"
+            error_msg = stderr.strip() if stderr else stdout.strip()
+            if "killed" in error_msg.lower() or returncode == -9:
+                message = "⚠️  Timeout (30s) - process killed, skipping problematic file"
+            else:
+                message = f"✗ Error: {error_msg}"
             if log_file:
                 log_file.write(f"{file_path}: {message}\n")
                 log_file.flush()
